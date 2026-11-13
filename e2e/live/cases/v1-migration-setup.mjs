@@ -8,8 +8,8 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
-/** The 10 agent ids (literal copy; GS4 forbids importing src/core/contracts/agents.ts). */
-export const AGENT_IDS = Object.freeze(["claude-code", "codex", "gemini", "qwen", "copilot-cli", "vscode", "kiro", "zcode", "pi", "opencode"]);
+/** The 11 agent ids (literal copy; GS4 forbids importing src/core/contracts/agents.ts). */
+export const AGENT_IDS = Object.freeze(["claude-code", "codex", "gemini", "qwen", "copilot-cli", "vscode", "kiro", "zcode", "pi", "opencode", "devin"]);
 
 const BIN = "context-mode"; // v1 global npm bin name
 const PROJECT_DIR = "project"; // <home>/project: the workspace for VS Code / Kiro project-scope files
@@ -145,6 +145,12 @@ const PLANT = {
   opencode(home) {
     put(path.join(home, ".config", "opencode", "opencode.json"), json({ $schema: "https://opencode.ai/config.json", plugin: [BIN] }));
   },
+  // Devin CLI postdates v1: context-mode v1 never shipped a devin adapter, so there is no v1 devin
+  // footprint to plant (no hooks/config/mcp entries v1 would have written for it). What a devin scan
+  // can still find is the shared v1 leftover every agent gets — the fake global bin and
+  // ~/.context-mode/ — which plantV1Install writes around this no-op; the test's EXPECTED.devin is
+  // V1_REASON.dataRoot.
+  devin() {},
 };
 
 /**

@@ -1103,7 +1103,7 @@ describe("[WHO] D-REL-WHO-1 release plan: who gets this release", { concurrency:
   const PLAN = path.join(REPO, "scripts", "release", "plan.mjs");
   const GIT_ID = ["-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", "-c", "init.defaultBranch=main"];
   const reach = () => import(pathToFileURL(path.join(REPO, "scripts", "release", "reach.mjs")).href);
-  const ALL = ["claude-code", "codex", "gemini", "qwen", "copilot-cli", "vscode", "kiro", "zcode", "pi", "opencode"];
+  const ALL = ["claude-code", "codex", "gemini", "qwen", "copilot-cli", "vscode", "kiro", "zcode", "pi", "opencode", "devin"];
 
   test("docs, tests, CI, bench and e2e reach no agent", async () => {
     const { reachOf } = await reach();
@@ -1146,7 +1146,7 @@ describe("[WHO] D-REL-WHO-1 release plan: who gets this release", { concurrency:
       "| Codex | GitHub, npm for the one-time hook trust step | `codex plugin marketplace upgrade context-mode` |",
       "| Pi | npm | `pi update --extensions` |",
       "",
-      "Same version, no code change: Gemini CLI, Qwen Code, Copilot CLI, VS Code (Copilot), Kiro, ZCode, OpenCode.",
+      "Same version, no code change: Gemini CLI, Qwen Code, Copilot CLI, VS Code (Copilot), Kiro, ZCode, OpenCode, Devin CLI.",
     ].join("\n"));
     assert.ok(!whoGetsTable(ALL).includes("Same version"), "every agent reached: no extra line");
   });
@@ -1156,7 +1156,7 @@ describe("[WHO] D-REL-WHO-1 release plan: who gets this release", { concurrency:
     const { agentRows } = await import(pathToFileURL(path.join(REPO, "build", "readme-agents.mjs")).href);
     const table = whoGetsTable(ALL);
     for (const r of agentRows()) assert.ok(table.includes(`| ${r.name} | `) && table.includes(`\`${r.cmds.update.join("; ")}\``), r.id);
-    for (const id of ["copilot-cli", "vscode", "kiro", "zcode", "pi", "opencode"]) assert.ok(!table.includes("| " + id), id);
+    for (const id of ["copilot-cli", "vscode", "kiro", "zcode", "pi", "opencode", "devin"]) assert.ok(!table.includes("| " + id), id);
   });
 
   function git(dir, ...args) {

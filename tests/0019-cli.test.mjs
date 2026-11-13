@@ -11,7 +11,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ADAPTERS } from "../src/adapters/table.ts";
 import { TOOL_ORDER, UNSUPPORTED_HOSTS } from "../src/core/contracts/constants.ts";
-import { vscodeUserDirOf } from "../src/core/project/config-dir.ts";
+import { devinDirOf, vscodeUserDirOf } from "../src/core/project/config-dir.ts";
 import { isEntry } from "../src/entries/is-entry.ts";
 
 // Serial: tests share one scratch dir and one built package from before(); every CLI call is spawnSync, which blocks the event loop.
@@ -538,6 +538,12 @@ describe("ADR-0019 cli", () => {
         const dir = vscodeUserDirOf(s.env, home);
         t = t.replaceAll(JSON.stringify(dir).slice(1, -1), "<VSCODE_USER>").replaceAll(dir, "<VSCODE_USER>");
       }
+      // Devin's user dir differs per OS too (%APPDATA%\devin on win32, $XDG_CONFIG_HOME/devin or ~/.config/devin
+      // on POSIX); the golden holds the <DEVIN_DIR> tag, the dir itself is asserted by tests/0019-setup-engine.test.mjs.
+      for (const home of [realpathSync(s.home), s.home]) {
+        const dir = devinDirOf(s.env, home);
+        t = t.replaceAll(JSON.stringify(dir).slice(1, -1), "<DEVIN_DIR>").replaceAll(dir, "<DEVIN_DIR>");
+      }
       // The CLI finds its package dir through realpath (macOS: /var -> /private/var), so map that form first.
       for (const [p, tag] of [[realpathSync(s.pkg), "<PKG>"], [s.pkg, "<PKG>"], [realpathSync(s.home), "<HOME>"], [s.home, "<HOME>"], [SETUP_NODE, "<NODE>"], [process.execPath, "<NODE>"]]) {
         t = t.replaceAll(JSON.stringify(p).slice(1, -1), tag).replaceAll(p, tag);
@@ -548,8 +554,8 @@ describe("ADR-0019 cli", () => {
       if (process.platform === "win32") {
         // The goldens hold the POSIX form. On Windows the same step has `\` (`\\` inside TOML/JSON strings) after a
         // tag, and shellWord single-quotes a word with a backslash. Map both back; the product output is right as is.
-        t = t.replace(/(<(?:PKG|NODE|HOME|VSCODE_USER)>)((?:\\{1,2}[^\s"'\\]+)+)/g, (_m, tag, rest) => tag + rest.replace(/\\{1,2}/g, "/"));
-        t = t.replace(/'(<(?:PKG|NODE|HOME|VSCODE_USER)>[^'\s]*)'/g, "$1");
+        t = t.replace(/(<(?:PKG|NODE|HOME|VSCODE_USER|DEVIN_DIR)>)((?:\\{1,2}[^\s"'\\]+)+)/g, (_m, tag, rest) => tag + rest.replace(/\\{1,2}/g, "/"));
+        t = t.replace(/'(<(?:PKG|NODE|HOME|VSCODE_USER|DEVIN_DIR)>[^'\s]*)'/g, "$1");
       }
       return t;
     }

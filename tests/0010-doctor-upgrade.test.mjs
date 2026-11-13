@@ -644,7 +644,7 @@ describe("ADR-0010 doctor on every unsupported host: one clear line, no false FA
       assert.equal(r.fixCommand, undefined);
     }
   }
-  const AGENT_LIST = ["claude-code", "codex", "gemini", "qwen", "copilot-cli", "vscode", "kiro", "zcode", "pi", "opencode"].join(", ");
+  const AGENT_LIST = ["claude-code", "codex", "gemini", "qwen", "copilot-cli", "vscode", "kiro", "zcode", "pi", "opencode", "devin"].join(", ");
 
   test("[D-UNSUPPORTED-HOSTS-1] the list holds the removed 2.0 hosts, each with a source line", () => {
     const ids = C.UNSUPPORTED_HOSTS.map((h) => h.id).sort();
@@ -681,7 +681,7 @@ describe("ADR-0010 doctor on every unsupported host: one clear line, no false FA
     const rs = await rows(home, "claude-code", { clientName: "claude-code", env: { CURSOR_TRACE_ID: "x", ZED_TERM: "true", KILO: "1" } });
     assert.equal(rs.find((x) => x.id === "D3").status, "FAIL");
     assert.equal(unsupportedHostOf({ clientName: "gemini-cli-mcp-client" }), undefined);
-    for (const id of ["claude-code", "codex", "gemini", "qwen", "copilot-cli", "vscode", "kiro", "zcode", "pi", "opencode"]) assert.equal(unsupportedHostByName(id), undefined, id);
+    for (const id of ["claude-code", "codex", "gemini", "qwen", "copilot-cli", "vscode", "kiro", "zcode", "pi", "opencode", "devin"]) assert.equal(unsupportedHostByName(id), undefined, id);
   });
 
   test("[D-UNSUPPORTED-HOSTS-1] an in-process host (Pi, OpenCode) is the host: a foreign env var from the terminal never marks it unsupported", async (t) => {

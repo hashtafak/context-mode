@@ -437,6 +437,10 @@ describe("GP11: v1 migration setup plants detectable footprints", { concurrency:
     pi: [V1_REASON.piNpm, V1_REASON.dataDir],
     opencode: [V1_REASON.opencodePlugin],
     zcode: [V1_REASON.zcodeHook],
+    // v1 predates the Devin CLI: no agent-specific v1 footprint exists. The detectable leftover is the
+    // shared ~/.context-mode/ v1 content the "All" row reports for every agent (e2e/live/cases/
+    // v1-migration-setup.mjs PLANT.devin is a documented no-op).
+    devin: [V1_REASON.dataRoot],
   };
 
   test("[M7] v1-migration-setup/own-agent-list-matches-AGENT_IDS", () => {
