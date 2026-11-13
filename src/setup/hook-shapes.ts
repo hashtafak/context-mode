@@ -72,4 +72,12 @@ export const HOOK_SHAPES: Readonly<Record<AgentId, ((row: AdapterRow, cmd: strin
   zcode: zcodeShape,
   pi: null,
   opencode: null,
+  agy: (row, cmd) => ({
+    "context-mode": {
+      SessionStart: [{ type: "command", command: `${cmd} --event SessionStart`, timeout: seconds(row) }],
+      PreInvocation: [{ type: "command", command: `${cmd} --event PreInvocation`, timeout: seconds(row) }],
+      PreToolUse: [{ matcher: "run_command|read_file|view_file", hooks: [{ type: "command", command: `${cmd} --event PreToolUse`, timeout: seconds(row) }] }],
+      PostToolUse: [{ matcher: "run_command|read_file|view_file", hooks: [{ type: "command", command: `${cmd} --event PostToolUse`, timeout: seconds(row) }] }],
+    },
+  }),
 };

@@ -41,12 +41,19 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv): Promise<void
     console.error("hooks: unknown " + AGENT_ARG + " " + JSON.stringify(agent) + ". Fix: pass " + AGENT_ARG + " with one of " + AGENT_IDS.join(", ") + ".");
     return finish(EMPTY);
   }
+  // Optional --event <eventName>
+  const evIdx = argv.indexOf("--event");
+  const eventFlag = evIdx >= 0 ? argv[evIdx + 1] : undefined;
+
   // Steps 2-3: stdin, JSON. Unreadable input names no tool, so the answer is this host's allow shape, and the error is logged.
   let raw: unknown;
   try {
     raw = JSON.parse(await readStdin());
   } catch (err) {
     return finish(failed(agent, undefined, "stdin", err, env));
+  }
+  if (eventFlag && typeof raw === "object" && raw !== null && !Array.isArray(raw)) {
+    (raw as Record<string, unknown>).__eventFlag = eventFlag;
   }
   // Steps 4-5: handleHook guards each stage itself; this catch covers a throw while dispatch loads and anything unforeseen.
   try {

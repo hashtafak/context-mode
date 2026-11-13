@@ -1,0 +1,7 @@
+{
+  "preset": "balanced",
+  "readCapBytes": 32768,
+  "allowBuildCommands": true,
+  "allowShellDumps": false,
+  "allowPerCallOverride": true
+}

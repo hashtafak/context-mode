@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "context-mode": {
+      "command": "node",
+      "args": [
+        "E:\\DATA\\2026\\ai-revolution\\context-mode-agy\\plugins\\claude-code\\server.mjs",
+        "--agent",
+        "gemini"
+      ]
+    }
+  }
+}

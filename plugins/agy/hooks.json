@@ -1,0 +1,42 @@
+{
+  "context-mode": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node hook-agy.mjs --event SessionStart",
+        "timeout": 10
+      }
+    ],
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "node hook-agy.mjs --event PreInvocation",
+        "timeout": 10
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "run_command|read_file|view_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node hook-agy.mjs --event PreToolUse",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "run_command|read_file|view_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node hook-agy.mjs --event PostToolUse",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
