@@ -1028,7 +1028,7 @@ describe("ADR-0015 repo: README agent lines", () => {
 
   test("readme-agents: every host row says it has hooks, from its hookChannel in table.ts", () => {
     const rows = agentRows();
-    assert.equal(rows.length, 10);
+    assert.equal(rows.length, ADAPTERS.length);
     for (const r of rows) {
       const a = ADAPTERS.find((x) => x.id === r.id);
       assert.ok(a.hookChannel, `${r.id} has a hookChannel`);

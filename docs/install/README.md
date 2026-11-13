@@ -21,9 +21,9 @@ The agents with no install command of their own use the npm route: `npm i -g con
 | Pi | `pi install npm:context-mode` | `pi update --extensions` |
 | OpenCode | `opencode plugin add context-mode` (1.19: `opencode plugin context-mode --global`) | `opencode plugin update` (1.19: `opencode plugin context-mode --global --force`) |
 | ZCode | `zcode plugins marketplace add mksglu/context-mode`, then `zcode plugins install context-mode@context-mode` | `zcode plugins update context-mode@context-mode` |
-| Copilot CLI, Kiro, VS Code | `npm i -g context-mode`, then `context-mode setup --agents <id>` | `context-mode upgrade` |
+| Copilot CLI, Kiro, VS Code, Devin CLI | `npm i -g context-mode`, then `context-mode setup --agents <id>` | `context-mode upgrade` |
 
-Fallback for any agent, and the only route for Copilot CLI, Kiro and VS Code:
+Fallback for any agent, and the only route for Copilot CLI, Kiro, VS Code and Devin CLI:
 
 ```sh
 npm i -g context-mode
@@ -78,6 +78,7 @@ Each page gives one command, what setup changes, how to check it, how to remove 
 | Claude Code | [claude-code.md](./claude-code.md) | `claude plugin marketplace add` + `plugin install` | yes, 2.1.309 |
 | Codex | [codex.md](./codex.md) | writes `~/.codex/config.toml`, `~/.codex/hooks.json`, skills | yes, 0.164.0 |
 | Copilot CLI | [copilot-cli.md](./copilot-cli.md) | `copilot mcp add`, writes hooks and skills | yes, 1.0.103 |
+| Devin CLI | [devin.md](./devin.md) | writes `config.json` hooks + `mcp_config.json` in the Devin user dir, skills | yes, 3000.12.28 (Windows, real user config) |
 | Gemini CLI | [gemini.md](./gemini.md) | `gemini extensions link --consent` | yes, 0.65.0 |
 | Kiro | [kiro.md](./kiro.md) | writes `~/.kiro/settings/mcp.json`, hooks and skills | config only: Kiro not installed |
 | OpenCode | [opencode.md](./opencode.md) | writes `opencode.json` (MCP and plugin), skills | yes, 1.19.4 |
@@ -106,6 +107,7 @@ Every agent gets hooks and the skills `/ctx-doctor`, `/ctx-stats`, `/ctx-upgrade
 | VS Code (Copilot) | `~/.copilot/hooks/context-mode-vscode.json` | `~/.agents/skills` | D | pass: 204,513 -> 560 | 2026-10-26 | not run | partly: no loader run |
 | Kiro | `~/.kiro/hooks/context-mode.json` | `~/.kiro/skills` | D | pass: 183,551 -> 242 | 2026-10-26 | not installed | partly: stdin payload from adapter, not docs |
 | ZCode | `~/.zcode/cli/config.json` `hooks` | `~/.zcode/skills` | D | pass: 169,068 -> 443 | 2026-10-26 | not installed | partly: skills dir not in docs |
+| Devin CLI | `config.json` `hooks` in the Devin user dir (`%APPDATA%\devin` on Windows, `~/.config/devin` else) | `<devin user dir>/skills` | R | pass: 8,944 -> 174 | 2026-11-13 | 3000.12.28 | yes: live `devin -p` run, replace needs CLI v3000.11.205+ |
 | Pi | plugin inside the agent `pi/index.js` | package `skills/` | R | pass: 200,062 -> 160 | 2026-10-26 | 0.73.1 | yes: docs shipped in the installed package |
 | OpenCode | plugin inside the agent `opencode/plugin.js` | `~/.config/opencode/skills` | D | pass: 198,645 -> 235 | 2026-10-26 | not installed | partly: plugin tool name unproven live |
 
@@ -135,7 +137,7 @@ If you update with npm yourself (`npm i -g context-mode`), most agents need noth
 | Agent | After `npm i -g` |
 |---|---|
 | Claude Code | Claude Code runs its own copy of the plugin. Run `context-mode setup --repair` (it runs `claude plugin marketplace update context-mode` and `claude plugin update context-mode@context-mode` in the profile it found), or run those two commands yourself. `context-mode doctor` fails with this fix line while the copy is old. |
-| Codex, Copilot CLI, Gemini CLI, Kiro, OpenCode, Pi, Qwen Code, VS Code, Z Code | Nothing. Restart the agent. |
+| Codex, Copilot CLI, Gemini CLI, Kiro, OpenCode, Pi, Qwen Code, VS Code, Z Code, Devin CLI | Nothing. Restart the agent. |
 
 Run `context-mode doctor` to check. It changes nothing.
 

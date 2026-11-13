@@ -49,11 +49,11 @@ Starred by engineers at these companies: each name is the company field of 2 or 
 
 ## Install
 
-Pick your agent: [Claude Code](#install-claude-code) · [Codex](#install-codex) · [Gemini CLI](#install-gemini) · [Qwen Code](#install-qwen) · [Pi](#install-pi) · [OpenCode](#install-opencode) · [Copilot CLI](#install-copilot-cli) · [Kiro](#install-kiro) · [VS Code](#install-vscode) · [ZCode](#install-zcode)
+Pick your agent: [Claude Code](#install-claude-code) · [Codex](#install-codex) · [Gemini CLI](#install-gemini) · [Qwen Code](#install-qwen) · [Pi](#install-pi) · [OpenCode](#install-opencode) · [Copilot CLI](#install-copilot-cli) · [Kiro](#install-kiro) · [VS Code](#install-vscode) · [ZCode](#install-zcode) · [Devin CLI](#install-devin)
 
 Open its block and copy its own install command. Each block also holds the update, check and remove steps, and the [Install guide](https://contextmode.ai/docs/engine/install?utm_source=github&utm_medium=readme&utm_content=install) walks through them.
 
-The plugin needs Node 24.15.0 or later, from the engines field in [package.json](package.json). On Windows, add Git for Windows: the shell tools run in Git Bash, and doctor checks for it.
+The plugin needs Node 24.15.0 or later, from the engines field in [package.json](package.json). On Windows, add Git for Windows: the shell tools run in Git Bash, and doctor checks for it. Devin CLI needs v3000.11.205 or later for the full saving (PostToolUse output replace).
 contextmode installs as the npm package and command `context-mode`.
 Claude Code, Codex, Gemini CLI and Qwen Code install from GitHub, and each of their commands names the release branch.
 
@@ -248,6 +248,26 @@ zcode plugins uninstall context-mode@context-mode
 Hooks ✓ (hook file) · MCP ✓ · Skills ✓
 
 </details>
+<details id="install-devin"><summary><b>Devin CLI</b></summary>
+
+```sh
+npm i -g context-mode
+context-mode setup --agents devin
+```
+
+```sh
+# update
+context-mode upgrade
+# check
+context-mode doctor --agents devin
+devin mcp list
+# remove
+context-mode setup --remove --agents devin
+```
+
+Hooks ✓ (hook file) · MCP ✓ · Skills ✓
+
+</details>
 
 The npm route works for every agent:
 
@@ -272,6 +292,7 @@ Hooks reach each agent in one of three ways: in the plugin package (Claude Code,
 We ran the real binary of each agent with the plugin hook: Claude Code, Codex, Gemini CLI, Qwen Code, Pi, OpenCode, Copilot CLI and ZCode. Each run used a clean temp home and a local test model, on 2.0.0-next.15.
 For VS Code and Kiro, the check covers the hook setup: VS Code runs the hook command with the documented payload, and kiro-cli 2.35.2 loads all 6 hook entries.
 CI runs setup, doctor, a hook and an MCP handshake for the agents it covers from the packed package on Linux, macOS and Windows. Record: [HOOKS-FIRE.md](docs/architecture/release/HOOKS-FIRE.md).
+Devin CLI 3000.12.28 also ran live on Windows against the real user config: all five hooks fired, the MCP server answered, and a large `exec` result was replaced (8,944 B to 174 B).
 Each agent uses its own install command, and [ADR-0023](docs/architecture/adr/ADR-0023-native-install.md) says why.
 
 </details>
@@ -308,6 +329,7 @@ Run the stats skill right after a prompt. Each agent uses its own command; the s
 | Claude Code | `/ctx-stats` |
 | Codex | `$ctx-stats` |
 | Copilot CLI | `/ctx-stats` |
+| Devin CLI | `/ctx-stats` |
 | Gemini CLI | `Call ctx_stats and show me the report.` |
 | Kiro | `Call ctx_stats and show me the report.` |
 | OpenCode | `Call ctx_stats and show me the report.` |
@@ -478,7 +500,7 @@ One tool call, in time order, from the install to a hook error.
    ```
 6. **Indexing.** The full output goes into the index in chunks of at most `MAX_CHUNK_BYTES` (4,096 B). A Markdown chunk stays inside one heading section, and a code block that fits stays whole. Each chunk goes into two SQLite FTS5 tables: a Porter-stemmed table for words and a trigram table for paths, names and parts of words ([fts.ts](src/core/store/fts.ts)).
 
-   `ctx_index` on a copy of this repo's `docs/how-it-works.md`, one live MCP call to `release-out/server.mjs` of Context Mode 2.0.0-next.36 on 2026-11-03 ([calls.json](bench/evidence/terminal-calls-2026-11-03/calls.json)). The file is 11,577 B; the agent gets 64 B.
+   `ctx_index` on a copy of this repo's `docs/how-it-works.md`, one live MCP call to `release-out/server.mjs` of Context Mode 2.0.0-next.36 on 2026-11-03 ([calls.json](bench/evidence/terminal-calls-2026-11-03/calls.json)). The file is 11,733 B; the agent gets 64 B.
 
    ```text
    ⏺ context-mode - ctx_index (MCP)(path: "how-it-works.md")

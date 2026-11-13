@@ -1,0 +1,6 @@
+{
+  "session_id": "<sid:0>",
+  "prompt_id": "<sid:1>",
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "Run exactly one Bash command: echo gp3-fixture-probe. Then stop."
+}

@@ -1,0 +1,9 @@
+{
+  "session_id": "<sid:0>",
+  "prompt_id": "<sid:1>",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "exec",
+  "tool_input": {
+    "command": "echo gp3-fixture-probe"
+  }
+}

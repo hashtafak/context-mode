@@ -710,6 +710,7 @@ describe("ADR-0019 build: host skills", () => {
     vscode: "mcp_context-mode_ctx_stats",
     kiro: "mcp_context_mode_ctx_stats", // D-R33-KIRO-NAMES-1: Kiro CLI 3.0 tool ids (uel)
     zcode: "mcp__context-mode__ctx_stats",
+    devin: "mcp__context-mode__ctx_stats",
     pi: "ctx_stats",
     opencode: "ctx_stats",
   };

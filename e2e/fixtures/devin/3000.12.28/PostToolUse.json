@@ -1,0 +1,14 @@
+{
+  "session_id": "<sid:0>",
+  "prompt_id": "<sid:1>",
+  "hook_event_name": "PostToolUse",
+  "tool_name": "exec",
+  "tool_input": {
+    "command": "echo gp3-fixture-probe"
+  },
+  "tool_response": {
+    "success": true,
+    "output": "gp3-fixture-probe\n",
+    "error": null
+  }
+}

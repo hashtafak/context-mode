@@ -113,6 +113,7 @@ const ALLOWED_DIRS = [
   "src/cli/", "src/setup/", // ADR-0019 D5-D7: npm CLI and setup engine (D-CR-0019-1)
   "tests/_lib/", "tests/fixtures/", "tests/e2e/", "tests/ops/", "e2e/", "build/", "bench/",
   "docs/architecture/", "docs/install/",
+  "docs/superpowers/", // SDD plans/specs for in-flight agent work (devin agent, 2026-11-13)
   "docs/assets/readme/", // README figures and their sources (D-README-THESIS-1)
   "scripts/release/",
   ".github/",
@@ -124,7 +125,7 @@ const ALLOWED_FILES = [
   "src/adapters/table.ts",
   "src/adapters/claude-code.ts", "src/adapters/codex.ts", "src/adapters/gemini.ts", "src/adapters/qwen.ts",
   "src/adapters/copilot-cli.ts", "src/adapters/vscode.ts", "src/adapters/kiro.ts", "src/adapters/zcode.ts",
-  "src/adapters/pi.ts", "src/adapters/opencode.ts",
+  "src/adapters/pi.ts", "src/adapters/opencode.ts", "src/adapters/devin.ts",
   // The 3 command skills and the release skill (GS5).
   ...ALLOWED_SKILL_FILES,
   ".claude/settings.json",

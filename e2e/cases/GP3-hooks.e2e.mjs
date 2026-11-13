@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { runHookFixture } from "../harness/hook-runner.mjs";
+import { hookChildEnv, runHookFixture } from "../harness/hook-runner.mjs";
 import { normalize } from "../harness/normalize.mjs";
 import { checkGolden } from "../harness/golden.mjs";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -15,7 +15,7 @@ import { DatabaseSync } from "node:sqlite";
 // GP3: hook files, fixture replay and Pi/OpenCode parity
 {
   // GP3 — hooks, M0 part only (14-tests.md §4 GP3 row; A6).
-  // Full GP3 (10 adapters x 4 events, Read-deny / shell-dump-deny / E1-E5 / P4 / V8 / V17 golden
+  // Full GP3 (11 adapters x 4 events, Read-deny / shell-dump-deny / E1-E5 / P4 / V8 / V17 golden
   // cases) is spec'd for its own milestone; this file's M0 slice is the fixture-replay smoke:
   // replay every recorded native hook payload under e2e/fixtures/ through hook-runner.mjs and
   // assert exit 0 plus the native "allow" stdout shape (10-adapters.md §2 shared encode step 2:
@@ -201,7 +201,10 @@ import { DatabaseSync } from "node:sqlite";
   for (const fx of fixtures) {
     test(`[M0] GP3/fixture-replay-${fx.agent}-${fx.event}`, async () => {
       const payload = JSON.parse(readFileSync(fx.filePath, "utf8"));
-      const result = await runHookFixture(HOOK_BUNDLE, fx.agent, payload);
+      // Devin sends no cwd field: decode reads DEVIN_PROJECT_DIR, else the hook's own cwd (the runner's repo,
+      // a real git repo, would resolve a project and change the golden). "<proj>" keeps the NO_GIT_DIR shape.
+      const env = fx.agent === "devin" ? { ...hookChildEnv(), DEVIN_PROJECT_DIR: "<proj>" } : undefined;
+      const result = await runHookFixture(HOOK_BUNDLE, fx.agent, payload, env);
       // Shared encode step 2, "allow" case: native stdout is "" on exit 0 for every adapter
       // (10-adapters.md §2 shared encode pseudocode); per-agent deny/hint shapes are out of
       // scope for this M0 smoke replay.

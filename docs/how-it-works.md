@@ -109,7 +109,7 @@ agent runs ctx_search(queries, scope)
 ## Adapters: one mechanism per host
 
 Every coding agent host (Claude Code, Codex, Gemini, Qwen, Copilot CLI, VS Code, Kiro, ZCode, Pi,
-OpenCode) wires hooks and the MCP server in a different way. The adapter table names, per host: how
+OpenCode, Devin CLI) wires hooks and the MCP server in a different way. The adapter table names, per host: how
 context-mode installs (`installMode`), how it finds the project root (`projectSource`), what its MCP tool
 names are prefixed with (`toolNamePrefix`), how a compaction-recovery block is delivered
 (`compactDelivery`), and how deny messages reach the host (`denyChannel`) (`docs/architecture/modules/10-adapters.md`
@@ -124,8 +124,9 @@ names are prefixed with (`toolNamePrefix`), how a compaction-recovery block is d
 | Kiro | MCP entry | `--agent` + cwd | none |
 | ZCode | hooks + MCP | spawn cwd | `SessionStart(source=compact)` (unverified) |
 | Pi, OpenCode | plugin inside the agent | the agent's own cwd | agent-specific flag/cache |
+| Devin CLI | hooks + MCP in the user config | spawn cwd (`DEVIN_PROJECT_DIR` fallback) | pending flag, delivered on next prompt |
 
-One mechanism, ten adapters: the rules in the sections above (deny, chunk, search, compact) are the same
+One mechanism, eleven adapters: the rules in the sections above (deny, chunk, search, compact) are the same
 everywhere; only how a host is told about them changes.
 
 ## Engineering details
@@ -136,7 +137,7 @@ Context Mode has three parts: hooks, an MCP server with nine tools, and one SQLi
 
 ### Hooks
 
-The hooks listen to four events: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`. Gemini CLI, VS Code and OpenCode also send a compaction event; each host keeps its own event names. `PreToolUse` checks rules in a fixed order: the user's deny list, WebFetch, curl and HTTP or build commands, then Read and shell dumps. Context Mode denies a full-file `Read` of a file over 16,384 B, and the deny message names the exact `ctx_execute` call to use. A `Read` with a range still runs. A hook always exits 0: on any error it gives the host's "allow" reply and writes one log line, so your agent keeps working. Spawned hooks time out after 5,000 ms.
+The hooks listen to four events: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`. Gemini CLI, VS Code, OpenCode and Devin CLI also send a compaction event; each host keeps its own event names. `PreToolUse` checks rules in a fixed order: the user's deny list, WebFetch, curl and HTTP or build commands, then Read and shell dumps. Context Mode denies a full-file `Read` of a file over 16,384 B, and the deny message names the exact `ctx_execute` call to use. A `Read` with a range still runs. A hook always exits 0: on any error it gives the host's "allow" reply and writes one log line, so your agent keeps working. Spawned hooks time out after 5,000 ms.
 
 ### Sandbox execution
 

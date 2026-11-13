@@ -148,5 +148,17 @@
       },
       "directory": "/tmp/project"
     }
+  },
+  "devin": {
+    "event": "PreToolUse",
+    "payload": {
+      "hook_event_name": "PreToolUse",
+      "session_id": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+      "prompt_id": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+      "tool_name": "exec",
+      "tool_input": {
+        "command": "echo gp3-fixture-probe"
+      }
+    }
   }
 }
