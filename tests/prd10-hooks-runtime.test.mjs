@@ -13,7 +13,7 @@ import { ctxSearch } from "../src/core/tools/search.ts";
 import { ctxStats } from "../src/core/tools/stats.ts";
 import { chunkText } from "../src/core/index/chunk.ts";
 import { getAdapter, ADAPTERS, hasRecall, hasReplace } from "../src/adapters/table.ts";
-import { SEARCH_TWIN_LINE, SEARCH_WRAPPER_FILE, COMPACT_POINTER_LINE, OUTPUT_CAP, REPLACE_TRIGGER_BYTES, REPLACE_RETURN_BYTES, REPLACE_CHUNK_BYTES, SYNC_INDEX_MAX_BYTES, PENDING_COMPACT_META_PREFIX, DECISION_OPTION_KEY, DECISION_SOURCE, RECALL_BUDGET_BYTES, RECALL_CLOSE_TAG, RECALL_OPEN_TAG, STATE_BUDGET, HOOK_TIMEOUT_MS,D5_LAST_HOOK_ERROR, MCP_HINT_EVERY, PARSE_ERROR_DENY_LINE, POLICY_UNREADABLE_LINE, REPLACE_HANDLE_LINE, REQUIRE_SECURITY_ENV, TOOL_ORDER, prefixToolNames } from "../src/core/contracts/constants.ts";
+import { SEARCH_TWIN_LINE, SEARCH_WRAPPER_FILE, COMPACT_POINTER_LINE, OUTPUT_CAP, REPLACE_TRIGGER_BYTES, REPLACE_RETURN_BYTES, REPLACE_CHUNK_BYTES, SYNC_INDEX_MAX_BYTES, PENDING_COMPACT_META_PREFIX, DECISION_OPTION_KEY, DECISION_SOURCE, RECALL_BUDGET_BYTES, RECALL_CLOSE_TAG, RECALL_OPEN_TAG, STATE_BUDGET, HOOK_TIMEOUT_MS,D5_LAST_HOOK_ERROR, MCP_HINT_EVERY, PARSE_ERROR_DENY_LINE, POLICY_UNREADABLE_LINE, REPLACE_HANDLE_LINE, REQUIRE_SECURITY_ENV, TOOL_ORDER, ENFORCE_ENV, prefixToolNames } from "../src/core/contracts/constants.ts";
 import { answerDecisions, askOptionLabels, listOptionLabels, optionEchoDecision } from "../src/core/hooks/decision.ts";
 import { decode } from "../src/adapters/claude-code.ts";
 import { openDb, closeDb, withWrite, metaGet } from "../src/core/store/db.ts";
@@ -2947,5 +2947,116 @@ describe("PRD-v2 section 10: usage rows", () => {
     assert.notEqual(first.stdout, "");
     const second = await ctx(); // marker taken: no compact state a second time
     assert.notEqual(second.stdout, first.stdout);
+  });
+});
+
+// devin-agent design §6 / 2026-11-13 plan task 3: CONTEXT_MODE_ENFORCE through handleHook.
+// "off" allows a normally-denied exec and drops the PostToolUse replace; "voluntary" drops the denies
+// but keeps the replace; the project file overrides the default and the env wins over the file.
+// serial: sets process.env.HOME in before(); process.env is shared by every test in the file.
+describe("PRD-v2 section 10: CONTEXT_MODE_ENFORCE levels (design §6)", () => {
+  let root, repo, env, oldHome;
+
+  // A hook or detached write keeps its DB handle open by design (A21); Windows cannot delete an open
+  // file, so temp cleanup there is best-effort (same rule as the other rmTemp copies in this file).
+  function rmTemp(dir) {
+    try {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 3 });
+    } catch (err) {
+      if (process.platform !== "win32" || (err.code !== "EPERM" && err.code !== "EBUSY")) throw err;
+    }
+  }
+
+  before(() => {
+    // handleHook refuses to run below NODE_MIN (24.15.0) and this machine has Node 22; the dispatch
+    // paths under test (decide, postReplace) use nothing Node-24-only and node:sqlite exists on 22,
+    // so the version is stubbed for this file's process only (the property is configurable).
+    Object.defineProperty(process, "version", { value: "v24.15.0" });
+    root = realpathSync(mkdtempSync(join(tmpdir(), "cm-enforce-hook-")));
+    repo = join(root, "repo");
+    mkdirSync(repo);
+    execFileSync("git", ["init", "-q", repo]);
+    oldHome = process.env.HOME;
+    process.env.HOME = root; process.env.USERPROFILE = root; // resolveConfigDir reads the process env (D-M1-T3-5)
+    env = { HOME: root, USERPROFILE: root, CLAUDE_PROJECT_DIR: repo, PATH: process.env.PATH };
+  });
+
+  after(() => {
+    process.env.HOME = oldHome;
+    rmTemp(root);
+  });
+
+  function cc(fields) {
+    return { session_id: "s-" + Math.random().toString(36).slice(2), cwd: repo, ...fields };
+  }
+  function parsed(out) {
+    assert.equal(out.exitCode, 0);
+    return out.stdout === "" ? null : JSON.parse(out.stdout).hookSpecificOutput;
+  }
+  function preCodexCurl(levelEnv) {
+    return handleHook("codex", cc({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "curl -s https://example.com" } }), { ...env, ...levelEnv });
+  }
+  function bigText(bytes) {
+    const lines = [];
+    let n = 0;
+    for (let i = 0; n < bytes; i++) {
+      const l = "line " + i + (i % 50 === 0 ? " needle target" : " filler words here") + "\n";
+      lines.push(l);
+      n += l.length;
+    }
+    return lines.join("");
+  }
+
+  test("off allows a normally-denied exec end to end; moderate (default) still denies", async () => {
+    assert.equal(parsed(await preCodexCurl({})).permissionDecision, "deny"); // no env, no file: moderate
+    assert.equal(parsed(await preCodexCurl({ [ENFORCE_ENV]: "bogus" })).permissionDecision, "deny"); // invalid -> moderate
+    assert.equal((await preCodexCurl({ [ENFORCE_ENV]: "off" })).stdout, ""); // allow: empty stdout
+    assert.equal((await preCodexCurl({ [ENFORCE_ENV]: "voluntary" })).stdout, "");
+  });
+
+  test("the project file overrides the default; the env wins over the file", async () => {
+    mkdirSync(join(repo, ".context-mode"), { recursive: true });
+    const file = join(repo, ".context-mode", "enforce.json");
+    try {
+      writeFileSync(file, JSON.stringify({ level: "off" }));
+      assert.equal((await preCodexCurl({})).stdout, "", "file off -> allow");
+      assert.equal(parsed(await preCodexCurl({ [ENFORCE_ENV]: "moderate" })).permissionDecision, "deny", "env moderate beats file off");
+      writeFileSync(file, JSON.stringify({ level: "moderate" }));
+      assert.equal(parsed(await preCodexCurl({})).permissionDecision, "deny", "file moderate -> deny");
+      assert.equal((await preCodexCurl({ [ENFORCE_ENV]: "off" })).stdout, "", "env off beats file moderate");
+    } finally {
+      rmSync(join(repo, ".context-mode"), { recursive: true, force: true });
+    }
+  });
+
+  test("a user deny rule still denies at off through the hook", async () => {
+    mkdirSync(join(repo, ".claude"), { recursive: true });
+    const settings = join(repo, ".claude", "settings.json");
+    writeFileSync(settings, JSON.stringify({ permissions: { deny: ["Bash(sudo *)"] } }));
+    try {
+      const p = cc({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "sudo ls" } });
+      const out = parsed(await handleHook("claude-code", p, { ...env, [ENFORCE_ENV]: "off" }));
+      assert.equal(out.permissionDecision, "deny");
+      assert.ok(out.permissionDecisionReason.includes("Blocked by security policy"), out.permissionDecisionReason);
+    } finally {
+      rmSync(settings, { force: true });
+    }
+  });
+
+  test("voluntary keeps the PostToolUse replace; off drops it (whole output passes through)", async () => {
+    const post = () => cc({
+      hook_event_name: "PostToolUse", tool_name: "Bash", tool_input: { command: "cat big.log", description: "needle target" },
+      tool_use_id: "toolu_" + Math.random().toString(36).slice(2),
+      tool_response: { stdout: bigText(20000), stderr: "", interrupted: false, isImage: false },
+    });
+    // D-M7-RR-1: a Bash replace is the host's Bash output shape {stdout, stderr, interrupted}.
+    const replacedText = (v) => (typeof v === "string" ? v : v.stdout);
+    const moderate = parsed(await handleHook("claude-code", post(), env));
+    assert.equal(typeof moderate.updatedToolOutput, "object");
+    assert.ok(replacedText(moderate.updatedToolOutput).includes("ctx_search"), "moderate replaces");
+    const voluntary = parsed(await handleHook("claude-code", post(), { ...env, [ENFORCE_ENV]: "voluntary" }));
+    assert.equal(typeof voluntary.updatedToolOutput, "object");
+    assert.ok(replacedText(voluntary.updatedToolOutput).includes("ctx_search"), "voluntary keeps replace");
+    assert.equal((await handleHook("claude-code", post(), { ...env, [ENFORCE_ENV]: "off" })).stdout, "", "off: no replace, empty allow");
   });
 });

@@ -21,6 +21,7 @@ import { decide } from "../policy/decide.ts";
 import { isOwnFile } from "../policy/own-file.ts";
 import { isSubagentCall, pickSubagentCase, toolSetForAgentType, type ToolSetSources } from "../policy/subagent.ts";
 import { readUserDeny } from "../policy/user-deny.ts";
+import { enforceLevelOf, levelAllowsReplace } from "../policy/enforce.ts";
 import { resolveProject } from "../project/resolve.ts";
 import { claudeDirOf, homeDirOf } from "../project/config-dir.ts";
 import { isInside } from "../project/contain.ts";
@@ -342,7 +343,7 @@ function toolSetSources(ev: CanonicalHookEvent, project: ProjectContext, env: No
 
 async function preToolUse(ev: CanonicalHookEvent, row: AdapterRow, project: ProjectContext, env: NodeJS.ProcessEnv): Promise<Decision> {
   const userDeny = readUserDeny(project.worktree, ev.agent);
-  const decision0 = decide(ev, row, userDeny, project);
+  const decision0 = decide(ev, row, userDeny, project, env);
   let decision = decision0;
   if (decision0.kind === "deny" && isSubagentCall(ev) && !isUserPolicyDeny(decision0.reason, row)) {
     // Case A keeps decision0 (D-M3-H2-4); case B names the run.mjs wrapper for a shell call.
@@ -467,6 +468,9 @@ function ownRead(ev: CanonicalHookEvent, tool: ToolCall, env: NodeJS.ProcessEnv)
 
 async function postReplace(ev: CanonicalHookEvent, row: AdapterRow, project: ProjectContext, env: NodeJS.ProcessEnv,
   tool: ToolCall, result: ToolResultInfo, text: string): Promise<Decision> {
+  // design §6: CONTEXT_MODE_ENFORCE "off" drops the replace too (the model gets the whole output);
+  // voluntary keeps it — replace only shrinks what the model sees, it never blocks the call.
+  if (!levelAllowsReplace(enforceLevelOf(env, project.worktree))) return ALLOW;
   // step 5: replace, DECISIONS-r9 F1 split. Subagent case B/C (ADR-0016), and the main agent on a row
   // with a replace channel ("run, then replace", D-M7-RR-1, DECISIONS-r10 (1)).
   if (result.bytes <= REPLACE_TRIGGER_BYTES) return ALLOW; // D-M7-SV-1

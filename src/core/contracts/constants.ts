@@ -193,6 +193,12 @@ export const DATA_ROOT = "~/.context-mode"; // PRD §4; the store module expands
 export const DATA_DIR_ENV = "CONTEXT_MODE_DATA_DIR"; // #1318 D-DATA-DIR-ENV-1: set and not empty, it replaces DATA_ROOT for every read and write
 export const INTERNAL_ERROR_LINE = "Internal error. Fix: run ctx_doctor."; // impl/11 §5 step 7d, §7 table
 export const REQUIRE_SECURITY_ENV = "CONTEXT_MODE_REQUIRE_SECURITY"; // v1 issue #468; DECISIONS-r9 E2
+// Runtime enforcement strictness (devin-agent design §6, src/core/policy/enforce.ts): the level is resolved
+// per call, env first, then <project>/.context-mode/enforce.json, then "moderate". It gates only context-mode's
+// own denies and the PostToolUse replace; the user's own deny rules apply at every level.
+export const ENFORCE_ENV = "CONTEXT_MODE_ENFORCE";
+export const ENFORCE_DIR_NAME = ".context-mode"; // per-project override dir: <project>/.context-mode/
+export const ENFORCE_FILE = "enforce.json";      // {"level": "off"|"voluntary"|"moderate"|"aggressive"}
 
 // Subagent tool-set sources (impl/08 §5.2, ADR-0016 "How the subagent's tools are known", DEVIATIONS D-M3-E3-1)
 export const HOST_CONFIG_DIR_NAME = ".claude"; // project and user agents: <root>/.claude/agents/<type>.md
@@ -802,6 +808,8 @@ export const PRAGMA_INTEGRITY_CHECK = "PRAGMA integrity_check";
 export function D10_DETAIL(mode: string): string { return `enforcement mode: ${mode}`; }
 // D-1331-OC-PERM-1 (#1331): D10 also reports whether the host permission check runs before each ctx_* tool.
 export function D10_PERMISSION_DETAIL(mode: string): string { return `enforcement mode: ${mode}; OpenCode permission rules apply to ctx_* tools`; }
+// devin-agent design §6: D10 also names the resolved CONTEXT_MODE_ENFORCE level and where it came from.
+export function D10_ENFORCE_SUFFIX(level: string, source: string): string { return `; CONTEXT_MODE_ENFORCE=${level} (${source})`; }
 export const D10_PERMISSION_MISSING_DETAIL = "this OpenCode build gives plugins no permission check (ctx.permission.assert), so ctx_* tools cannot follow OpenCode permission rules";
 export const D10_PERMISSION_FIX = "opencode upgrade";
 // D-1331-OC-PERM-1: the action names the OpenCode built-in tools assert (2.x: core chunks shell/read/webfetch tools; 1.x: "bash").

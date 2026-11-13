@@ -28,6 +28,7 @@ import type { UnsupportedHost } from "../contracts/constants.ts";
 import type { AgentId } from "../contracts/agents.ts";
 import { UNSUPPORTED_HOST_LINE } from "../ops/unsupported-host.ts";
 import { environmentLine, runtimeInfo, writeIssueReport } from "../ops/doctor-issue.ts";
+import { resolveEnforce } from "../policy/enforce.ts";
 import { claudeDirOf, hostUpdateCommand, codexDirOf, codexRunDirOf, homeDirOf, copilotDirOf, geminiDirOf, kiroDirOf, opencodeDirOf, piAgentDirOf, requireHomeDir, resolveConfigDir } from "../project/config-dir.ts";
 import { indexText } from "../index/text.ts";
 import { buildChildEnv } from "../sandbox/env.ts";
@@ -139,7 +140,7 @@ export async function runDoctorChecks(ctx: ToolContext, adapter: AdapterRow, hos
       return r.row;
     },
     D9: () => checkIndex(project),
-    D10: () => checkMode(adapter, ctx.hostPermission), // D-1331-OC-PERM-1
+    D10: () => checkMode(adapter, ctx.hostPermission, resolveEnforce(env, project.worktree)), // D-1331-OC-PERM-1; design §6: resolved CONTEXT_MODE_ENFORCE level + source
     D11: () => checkRuntimes(env, checkShell(env)),
   };
   const rows: DoctorRow[] = [];

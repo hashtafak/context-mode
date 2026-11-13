@@ -25,6 +25,7 @@ import { READ_DENY_MESSAGE, READ_DENY_RANGE_MESSAGE } from "./read-deny.ts";
 import { isOwnFile } from "./own-file.ts";
 import { isInsideAny } from "../project/contain.ts";
 import { isMediaRead } from "./read-media.ts";
+import { enforceLevelOf, levelAllowsDeny } from "./enforce.ts";
 
 // Canonical tool names (impl/01 §2) and input field values; names, not tunable values.
 const BASH = "Bash";
@@ -55,8 +56,9 @@ const has = (list: readonly string[], v: string): boolean => list.includes(v);
  *  `worktree` (on a ProjectContext it is a lazy getter that spawns git), so a PreToolUse call spawns nothing. */
 export type DenyRoot = string | Pick<ProjectContext, "worktree" | "containmentRoot">;
 
-/** `root`: the project of this call (D-R48-DENY-ROUTE-1); defaults to ev.cwd. */
-export function decide(ev: CanonicalHookEvent, row: AdapterRow, userDeny: string[] | null, root: DenyRoot = ev.cwd): Decision {
+/** `root`: the project of this call (D-R48-DENY-ROUTE-1); defaults to ev.cwd. `env`: the hook env
+ *  (CONTEXT_MODE_ENFORCE resolution, design §6); defaults to process.env. */
+export function decide(ev: CanonicalHookEvent, row: AdapterRow, userDeny: string[] | null, root: DenyRoot = ev.cwd, env: NodeJS.ProcessEnv = process.env): Decision {
   const tool = ev.tool;
   if (tool === undefined) return ALLOW; // a PreToolUse with no tool is a dispatch bug (§6.1 input)
   const canonical = tool.canonicalName;
@@ -72,9 +74,14 @@ export function decide(ev: CanonicalHookEvent, row: AdapterRow, userDeny: string
   const hit = userDenyHit(canonical, input, ev.cwd, rules);
   if (hit !== null) return deny(USER_DENY_REASON_PREFIX + hit);
 
-  if (canonical === WEBFETCH) return webFetch(input, row); // step 4
-  if (canonical === BASH) return bash(ev, row, input, rules, root); // steps 5, 6a
-  if (canonical === READ) return read(ev, row, input, root); // step 6
+  // design §6: CONTEXT_MODE_ENFORCE gates only context-mode's own denies, resolved after the user-deny
+  // step so the user's rules apply at every level. The enforce file lives at the project root: root's
+  // worktree on a ProjectContext, the root path itself otherwise (ev.cwd by default).
+  const ownDeny = levelAllowsDeny(enforceLevelOf(env, typeof root === "string" ? root : root.worktree));
+
+  if (canonical === WEBFETCH) return webFetch(input, row, ownDeny); // step 4
+  if (canonical === BASH) return bash(ev, row, input, rules, root, ownDeny); // steps 5, 6a
+  if (canonical === READ) return read(ev, row, input, root, ownDeny); // step 6
   // Steps 5d, 7, 8 (Bash/PowerShell/Read/Grep/other-MCP hints) are retired: D-M7-RR-2, DECISIONS-r10 (2).
   return ALLOW; // step 9
 }
@@ -208,17 +215,28 @@ function neverDenied(url: string): boolean {
   return NEVER_DENY_HOSTS.some((h) => host === h || host.endsWith(HOST_SEP + h));
 }
 
-function webFetch(input: Record<string, unknown>, row: AdapterRow): Decision {
+function webFetch(input: Record<string, unknown>, row: AdapterRow, ownDeny: boolean): Decision {
   const url = str(input.url) ?? "";
-  return neverDenied(url) ? ALLOW : deny(denyMessage("webfetch", url, row));
+  return neverDenied(url) || !ownDeny ? ALLOW : deny(denyMessage("webfetch", url, row));
 }
 
 // ---------- step 5: Bash ----------
 
-function bash(ev: CanonicalHookEvent, row: AdapterRow, input: Record<string, unknown>, rules: string[], root: DenyRoot): Decision {
+/** design §6: a context-mode deny (never a user-policy one — those return before this gate) is dropped
+ *  at off|voluntary; an ALLOW verdict (a bounded dump) always stands. */
+function ownGate(d: Decision | null, ownDeny: boolean): Decision | null {
+  return d !== null && d.kind === "deny" && !ownDeny ? null : d;
+}
+
+function bash(ev: CanonicalHookEvent, row: AdapterRow, input: Record<string, unknown>, rules: string[], root: DenyRoot, ownDeny: boolean): Decision {
   const cmd = str(input.command) ?? "";
   const parsed = parseShell(cmd);
-  if (!parsed.ok) return couldMatch(cmd, rules) ? deny(prefixToolNames(PARSE_ERROR_DENY_LINE, row.toolNamePrefix)) : psShellDump(ev, cmd, row, root) ?? ALLOW; // 5b, Q4
+  // The parse-error deny is user-policy (it fires only when a user rule could match, Q4): it stays at
+  // every level. Only the PowerShell dump deny behind it is context-mode's own.
+  if (!parsed.ok) {
+    if (couldMatch(cmd, rules)) return deny(prefixToolNames(PARSE_ERROR_DENY_LINE, row.toolNamePrefix));
+    return ownGate(psShellDump(ev, cmd, row, root), ownDeny) ?? ALLOW; // 5b
+  }
   const cmds = unwrap(parsed.commands);
   for (const c of cmds) {
     const h = segmentHit(c, rules);
@@ -226,13 +244,13 @@ function bash(ev: CanonicalHookEvent, row: AdapterRow, input: Record<string, unk
   }
   // 5c size-guess denies: only where no post-run replace exists, or on a subagent call (ADR-0016).
   // On a replace row the main agent runs the command and PostToolUse replaces a large result (D-M7-RR-1).
-  if (!hasReplace(row) || isSubagentCall(ev)) {
+  if (ownDeny && (!hasReplace(row) || isSubagentCall(ev))) {
     for (const c of cmds) {
       const kind = denyKind(c);
       if (kind !== null) return deny(denyMessage(kind, cmd, row, str(input.description)));
     }
   }
-  return shellDump(ev, cmds, row, root) ?? psShellDump(ev, cmd, row, root) ?? ALLOW; // 6a: file size known by stat, kept (D-M7-RR-1)
+  return ownGate(shellDump(ev, cmds, row, root), ownDeny) ?? ownGate(psShellDump(ev, cmd, row, root), ownDeny) ?? ALLOW; // 6a: file size known by stat, kept (D-M7-RR-1)
 }
 
 /** 5c, in the §6.1 order: curl/wget, inline HTTP, build tool. */
@@ -307,14 +325,14 @@ function executeCanOpen(root: DenyRoot, abs: string): boolean {
   }
 }
 
-function read(ev: CanonicalHookEvent, row: AdapterRow, input: Record<string, unknown>, root: DenyRoot): Decision {
+function read(ev: CanonicalHookEvent, row: AdapterRow, input: Record<string, unknown>, root: DenyRoot, ownDeny: boolean): Decision {
   if (!present(input.offset) && !present(input.limit)) {
     for (const p of readPaths(input)) {
       const abs = resolve(ev.cwd, p);
       const size = fileSize(abs);
       // D-R47-READ-MEDIA-1 (#1321, #1324): an image or PDF the host shows as a block costs no text bytes.
       if (size > OUTPUT_CAP && !isMediaRead(ev.agent, abs)) {
-        const d = bigDeny(ev, row, ev.cwd, p, size, root);
+        const d = ownGate(bigDeny(ev, row, ev.cwd, p, size, root), ownDeny);
         if (d !== null) return d;
       }
     }

@@ -8,7 +8,7 @@ import { CONC } from "./_lib/concurrency.mjs";
 import assert from "node:assert/strict";
 import { dequote, isAssignment, lex, scan, substitutions } from "../src/core/policy/lexer.ts";
 import { parseShell } from "../src/core/policy/parse.ts";
-import { MAX_NEST_DEPTH, OUTPUT_CAP, PARSE_ERROR_DENY_LINE, POLICY_UNREADABLE_LINE, READ_DENY_FIXED_CAP, REQUIRE_SECURITY_ENV, USER_DENY_REASON_PREFIX, prefixToolNames } from "../src/core/contracts/constants.ts";
+import { ENFORCE_ENV, MAX_NEST_DEPTH, OUTPUT_CAP, PARSE_ERROR_DENY_LINE, POLICY_UNREADABLE_LINE, READ_DENY_FIXED_CAP, REQUIRE_SECURITY_ENV, USER_DENY_REASON_PREFIX, prefixToolNames } from "../src/core/contracts/constants.ts";
 import { unwrap } from "../src/core/policy/unwrap.ts";
 import { psDump, psWords } from "../src/core/policy/powershell.ts";
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -27,6 +27,7 @@ import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 import { matchesAnyDenyPattern, readUserDeny } from "../src/core/policy/user-deny.ts";
 import { AGENT_IDS } from "../src/core/contracts/agents.ts";
+import { enforceLevelOf, levelAllowsDeny, levelAllowsReplace, resolveEnforce } from "../src/core/policy/enforce.ts";
 
 describe("ADR-0008 lexer", { concurrency: CONC }, () => {
   // Unit tests for src/core/policy/lexer.ts (impl/08 §1, DECISIONS-r9 P1, P3, E1).
@@ -1588,5 +1589,103 @@ describe("ADR-0008 privacy: network call sites in src (D-PRIVACY-NET-1)", { conc
     for (const need of ["Zero telemetry", "src/core/sandbox/fetch.ts", "git ls-remote", "gh issue create", "npm i -g context-mode", "D-PRIVACY-NET-1"]) {
       assert.ok(readme.includes(need), `README lacks ${need}`);
     }
+  });
+});
+
+// devin-agent design §6 / 2026-11-13 plan task 3: CONTEXT_MODE_ENFORCE runtime strictness.
+// Resolution env -> <project>/.context-mode/enforce.json -> "moderate"; the level gates only
+// context-mode's own denies (decide, after the user-deny step) and the PostToolUse replace (dispatch,
+// covered in prd10-hooks-runtime.test.mjs). User deny rules apply at every level, "off" included.
+describe("CONTEXT_MODE_ENFORCE level resolution and decide() gate", { concurrency: CONC }, () => {
+  const CC = getAdapter("claude-code");
+  const CODEX = getAdapter("codex"); // no replace channel: the 5c size-guess denies still fire
+  let dir, big;
+
+  before(() => {
+    dir = realpathSync(mkdtempSync(join(tmpdir(), "cm-enforce-")));
+    mkdirSync(join(dir, ".context-mode"), { recursive: true });
+    writeFileSync(join(dir, ".context-mode", "enforce.json"), JSON.stringify({ level: "aggressive" }));
+    big = join(dir, "big.log");
+    writeFileSync(big, "x".repeat(300 * 1024));
+  });
+  after(() => rmSync(dir, { recursive: true, force: true }));
+
+  const ev = (name, input) => ({ event: "PreToolUse", agent: "claude-code", sessionId: "s", cwd: dir, tool: { name, canonicalName: name, input } });
+  const d = (name, input, row, rules, level) => decide(ev(name, input), row, rules, dir, { [ENFORCE_ENV]: level });
+  const CURL = "curl -s https://x.io/a.json";
+
+  test("env CONTEXT_MODE_ENFORCE wins over the project file; the file beats the default", () => {
+    assert.deepEqual(resolveEnforce({ [ENFORCE_ENV]: "off" }, dir), { level: "off", source: "env" });
+    assert.equal(enforceLevelOf({ [ENFORCE_ENV]: "voluntary" }, dir), "voluntary");
+    assert.deepEqual(resolveEnforce({}, dir), { level: "aggressive", source: "file" });
+    assert.equal(enforceLevelOf({ PATH: "/usr/bin" }, dir), "aggressive");
+  });
+
+  test("no env and no file -> moderate (default); invalid values -> moderate", () => {
+    const empty = realpathSync(mkdtempSync(join(tmpdir(), "cm-enforce-empty-")));
+    try {
+      assert.deepEqual(resolveEnforce({}, empty), { level: "moderate", source: "default" });
+      assert.equal(enforceLevelOf({ [ENFORCE_ENV]: "bogus" }, empty), "moderate");
+      assert.equal(enforceLevelOf({ [ENFORCE_ENV]: "" }, empty), "moderate"); // empty counts as missing
+      mkdirSync(join(empty, ".context-mode"), { recursive: true });
+      const file = join(empty, ".context-mode", "enforce.json");
+      writeFileSync(file, "{oops");
+      assert.equal(enforceLevelOf({}, empty), "moderate");
+      writeFileSync(file, JSON.stringify({ level: "bogus" }));
+      assert.equal(enforceLevelOf({}, empty), "moderate");
+      writeFileSync(file, JSON.stringify(["off"]));
+      assert.equal(enforceLevelOf({}, empty), "moderate");
+    } finally {
+      rmSync(empty, { recursive: true, force: true });
+    }
+  });
+
+  test("an invalid env value does not hide a valid file (it counts as missing)", () => {
+    assert.deepEqual(resolveEnforce({ [ENFORCE_ENV]: "bogus" }, dir), { level: "aggressive", source: "file" });
+  });
+
+  test("levelAllowsDeny / levelAllowsReplace tables (design §6)", () => {
+    for (const l of ["off", "voluntary"]) {
+      assert.equal(levelAllowsDeny(l), false, l);
+      assert.equal(levelAllowsReplace(l), l !== "off", l);
+    }
+    for (const l of ["moderate", "aggressive"]) {
+      assert.equal(levelAllowsDeny(l), true, l);
+      assert.equal(levelAllowsReplace(l), true, l);
+    }
+  });
+
+  test("off: a normally-denied exec (5c curl on a no-replace row) is allowed; voluntary too", () => {
+    assert.equal(d("Bash", { command: CURL }, CODEX, [], "moderate").kind, "deny"); // baseline
+    assert.equal(d("Bash", { command: CURL }, CODEX, [], "off").kind, "allow");
+    assert.equal(d("Bash", { command: CURL }, CODEX, [], "voluntary").kind, "allow");
+  });
+
+  test("off/voluntary: WebFetch, the unbounded-Read deny and the shell dump are allowed; moderate/aggressive deny", () => {
+    for (const level of ["off", "voluntary"]) {
+      assert.equal(d("WebFetch", { url: "https://example.com/a" }, CC, [], level).kind, "allow", level);
+      assert.equal(d("Read", { file_path: big }, CC, [], level).kind, "allow", level);
+      assert.equal(d("Bash", { command: "cat " + big }, CODEX, [], level).kind, "allow", level);
+    }
+    for (const level of ["moderate", "aggressive"]) {
+      assert.equal(d("WebFetch", { url: "https://example.com/a" }, CC, [], level).kind, "deny", level);
+      assert.equal(d("Read", { file_path: big }, CC, [], level).kind, "deny", level);
+      assert.equal(d("Bash", { command: "cat " + big }, CODEX, [], level).kind, "deny", level);
+    }
+  });
+
+  test("user deny rules still fire at off (they are user policy, not context-mode)", () => {
+    const deny = ["Bash(sudo *)"];
+    for (const level of ["off", "voluntary", "moderate", "aggressive"]) {
+      const r = d("Bash", { command: "sudo ls" }, CC, deny, level);
+      assert.equal(r.kind, "deny", level);
+      assert.ok(r.reason.startsWith(USER_DENY_REASON_PREFIX), level + ": " + r.reason);
+    }
+    // and a context-mode deny on the same rules is the one the level drops
+    assert.equal(d("Bash", { command: CURL }, CODEX, deny, "off").kind, "allow");
+  });
+
+  test("aggressive behaves as moderate for now (TODO in enforce.ts: unbounded-Read delta pending)", () => {
+    assert.equal(d("Bash", { command: CURL }, CODEX, [], "aggressive").reason, d("Bash", { command: CURL }, CODEX, [], "moderate").reason);
   });
 });
