@@ -3,7 +3,7 @@
 // No regex: every parse below is a character scanner. JSON/JSONC edits touch only the edited value span,
 // so comments and untouched text survive byte for byte.
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { getStaticTOMLValue, parseTOML } from "toml-eslint-parser";
 import type { AST } from "toml-eslint-parser";
 import {
@@ -31,6 +31,14 @@ function formatOf(path: string): HostConfigFormat {
   return "json";
 }
 
+/** Devin documents both user config files — config.json (the "hooks" key) and mcp_config.json (the MCP
+ *  servers) — as JSONC. The .json extension alone does not say it, so like OpenCode's .jsonc pick the
+ *  format is keyed by agent + file name here, the one place every host-config reader shares. */
+const DEVIN_JSONC_FILES: ReadonlySet<string> = new Set(["config.json", "mcp_config.json"]);
+export function devinJsoncFile(agent: AgentId, path: string): boolean {
+  return agent === "devin" && DEVIN_JSONC_FILES.has(basename(path));
+}
+
 /** impl/07 §2: raw text + format. OpenCode: a sibling opencode.jsonc wins over opencode.json (#849, D-M5-O1-3).
  *  A file that does not exist reads as "" (an empty config the first write creates). */
 export function readHostConfig(agent: AgentId, path: string): HostConfigText {
@@ -40,7 +48,7 @@ export function readHostConfig(agent: AgentId, path: string): HostConfigText {
     if (existsSync(jsonc)) file = jsonc;
   }
   const raw = existsSync(file) ? readFileSync(file, "utf8") : "";
-  return { agent, text: hostText(raw), format: agent === "opencode" && !file.endsWith(TOML_EXT) ? "jsonc" : formatOf(file), path: file, layout: hostLayout(raw) }; // CC-WIN-3: BOM and CRLF off for parsing
+  return { agent, text: hostText(raw), format: agent === "opencode" && !file.endsWith(TOML_EXT) ? "jsonc" : devinJsoncFile(agent, file) ? "jsonc" : formatOf(file), path: file, layout: hostLayout(raw) }; // CC-WIN-3: BOM and CRLF off for parsing
 }
 
 // ------------------------------------------------------------------------------------------ JSONC scan

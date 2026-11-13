@@ -23,7 +23,7 @@ import type { AgentId, HostConfigFormat, V1Finding } from "../core/contracts/typ
 import { detectV1 } from "../core/ops/detect-v1.ts";
 import { isNativeOpencodeEntry, OPENCODE_PACKAGE_DIR_HINT, opencodeDirPlugin, opencodeDirPlugins, opencodePluginDirs, opencodeProjectDir } from "../core/ops/doctor-config.ts";
 import { atomicWriteFile, renameWithRetry, unlinkWithRetry } from "../core/ops/atomic-file.ts";
-import { editHostConfigText, hostConfigValueAt, parseHostConfig } from "../core/ops/host-config.ts";
+import { devinJsoncFile, editHostConfigText, hostConfigValueAt, parseHostConfig } from "../core/ops/host-config.ts";
 import { hostLayout, hostText, withLayout } from "../core/ops/host-text.ts";
 import { AGENT_FLAG, BACKUP_DIR, COMMAND_SKILLS, HOOK_BUNDLE, LOCK_FILE, SKILL_FILE, assertWritable, buildRegistry, configEdits, hookCommandString, renderSkill } from "./registry.ts";
 import type { CheckRow, HookFile, HookInstall, NativePlugin, SetupContext } from "./registry.ts";
@@ -170,7 +170,8 @@ function planHookFile(row: CheckRow, hf: HookFile): FileEdit | undefined {
   const before = readOr(hf.file);
   if (before === undefined) return undefined;
   let doc: unknown;
-  try { doc = JSON.parse(before); } catch { throw new Error(parseFail(row, hf.file)); }
+  // The host's own format: a Devin config.json is JSONC, so a // comment must not fail the v1 scan (it edits nothing).
+  try { doc = parseHostConfig(row.id, hf.file, before, fileFormat(row, hf.file)); } catch { throw new Error(parseFail(row, hf.file)); }
   if (!isObj(doc) || !isObj(doc.hooks)) return undefined;
   const changes: Change[] = [];
   const want = hookCommandString(row);
@@ -236,8 +237,9 @@ function mergeOwn(cur: unknown, want: unknown, agent: string): unknown {
   return want;
 }
 
-/** The format of a host file: the MCP config row's format when the file is that config (opencode.json), else JSON. */
-const fileFormat = (row: CheckRow, file: string): HostConfigFormat => (row.config?.file === file ? row.config.format : "json");
+/** The format of a host file: the MCP config row's format when the file is that config (opencode.json), the
+ *  agent+file rule for hosts whose .json is JSONC (Devin config.json/mcp_config.json), else JSON. */
+const fileFormat = (row: CheckRow, file: string): HostConfigFormat => (row.config?.file === file ? row.config.format : devinJsoncFile(row.id, file) ? "jsonc" : "json");
 
 /** One edit of `file` (a JSON host file), chained on any earlier edit of the same file in this plan. */
 function planJsonKeys(row: CheckRow, edits: FileEdit[], file: string, format: HostConfigFormat, want: (doc: Json) => [readonly string[], unknown][]): void {

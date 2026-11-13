@@ -23,6 +23,7 @@ import { getAdapter } from "../src/adapters/table.ts";
 import { OWN_TABLE, TOML_FIXTURES, WITH_OWN } from "./ops/toml-fixtures.mjs";
 import { readUserDeny } from "../src/core/policy/user-deny.ts";
 import { runUninstall } from "../src/core/ops/uninstall.ts";
+import { devinDirOf } from "../src/core/project/config-dir.ts";
 import { hostConfigPath, regenerateHostConfig } from "../src/core/ops/host-write.ts";
 import { resolvePluginRoot } from "../src/core/ops/plugin-root.ts";
 import { CtxError } from "../src/core/contracts/errors.ts";
@@ -80,6 +81,26 @@ describe("ADR-0019 host text layout: BOM, CRLF (D-WIN-BOM, D-WIN-EOL)", () => {
     const b = readHostConfig("opencode", json);
     assert.equal(b.format, "jsonc");
     assert.deepEqual(parseHostConfig("opencode", b.path, b.text, b.format), { theme: "light" });
+  });
+
+  test("host-text: devin config.json and mcp_config.json read as jsonc; comments survive an edit", (t) => {
+    const dir = tmp(t);
+    for (const name of ["config.json", "mcp_config.json"]) {
+      const file = path.join(dir, name);
+      writeFileSync(file, '{\n  // user note\n  "mcpServers": {\n    "other": { "command": "x" } // trailing\n  }\n}\n', "utf8");
+      const cur = readHostConfig("devin", file);
+      assert.equal(cur.format, "jsonc", name);
+      assert.deepEqual(parseHostConfig("devin", cur.path, cur.text, cur.format).mcpServers.other, { command: "x" }, name);
+      const res = editHostConfigText("devin", file, cur.text, cur.format, [[["mcpServers", "context-mode"], { command: "node", args: [] }]]);
+      assert.ok(res.text.includes("// user note") && res.text.includes("// trailing"), name + ": comments kept");
+      assert.deepEqual(parseHostConfig("devin", file, res.text, res.format).mcpServers["context-mode"], { command: "node", args: [] }, name);
+      assert.deepEqual(parseHostConfig("devin", file, res.text, res.format).mcpServers.other, { command: "x" }, name + ": user entry kept");
+    }
+    // The same file name under another agent stays strict JSON.
+    const other = path.join(dir, "settings.json");
+    writeFileSync(other, '{\n  // c\n  "a": 1\n}\n', "utf8");
+    assert.equal(readHostConfig("kiro", other).format, "json");
+    assert.throws(() => parseHostConfig("kiro", other, readHostConfig("kiro", other).text, "json"), CtxError);
   });
 
   test("host-text: detectV1 sees a v1 hook in a settings.json that starts with a BOM", (t) => {
@@ -1280,6 +1301,20 @@ describe("ADR-0019 host config (concurrent blocks)", { concurrency: CONC }, () =
       for (const a of [C.UPGRADE_SERVER_AREA, C.UPGRADE_CACHE_AREA, C.UPGRADE_DATA_AREA]) assert.equal(area(rows, a).length, 1, a);
       assert.ok(rows.some((r) => r.before === C.UPGRADE_OWN_ENTRY && r.after === C.UPGRADE_REMOVED), "own config entry row");
       assert.equal(area(rows, C.UPGRADE_DATA_AREA)[0].after, C.UPGRADE_DATA_DELETED);
+    });
+
+    test("[M5] uninstall/devin-mcp-config-jsonc-keeps-comments", (t) => {
+      const home = tmp(t);
+      const env = { HOME: home, USERPROFILE: home };
+      const file = path.join(devinDirOf(env, home), "mcp_config.json");
+      mkdirSync(path.dirname(file), { recursive: true });
+      writeFileSync(file, '{\n  // user servers\n  "mcpServers": {\n    "context-mode": { "command": "node", "args": ["/x/server.mjs", "--agent", "devin"] },\n    "other": { "command": "y" }\n  },\n  // tail note\n  "note": 1 // keep me\n}\n', "utf8");
+      run(home, "devin", "hooks+mcp");
+      const text = readFileSync(file, "utf8");
+      assert.ok(text.includes("// user servers") && text.includes("// tail note") && text.includes("// keep me"), "comments outside the edited span kept byte for byte");
+      const doc = parseHostConfig("devin", file, text, "jsonc");
+      assert.equal(doc.mcpServers["context-mode"], undefined, "own entry dropped");
+      assert.deepEqual(doc.mcpServers.other, { command: "y" }, "user entry kept");
     });
 
     test("[M5] uninstall/dead-owner-gets-no-stop-marker", (t) => {

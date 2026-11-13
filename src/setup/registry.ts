@@ -8,7 +8,7 @@ import { ADAPTERS, getAdapter } from "../adapters/table.ts";
 import { AGENT_HOME_DIR, PLUGIN_MARKETPLACE_NAME, HOST_NODE_COMMAND, HOST_PLUGINS_DIR_NAME, INSTALLED_PLUGINS_FILE, MCP_ENV_FIELD, OPENCODE_BASE_CONFIG_FILE, OWN_MCP_ENTRY, SERVER_KEY, SETUP_BACKUP_DIR_NAME, TOOL_ORDER } from "../core/contracts/constants.ts";
 import type { AgentId, AdapterRow, HostConfigFormat } from "../core/contracts/types.ts";
 import { claudeDirOf, claudeProfileEnv, copilotDirOf, devinDirOf, geminiDirOf, kiroDirOf, opencodeDirOf, ownMcpFileOf } from "../core/project/config-dir.ts";
-import { ownMcpValue } from "../core/ops/host-config.ts";
+import { devinJsoncFile, ownMcpValue } from "../core/ops/host-config.ts";
 import { HOOK_SHAPES, type JsonObject } from "./hook-shapes.ts";
 
 export const SERVER_BUNDLE = "server.mjs";
@@ -218,7 +218,7 @@ function configFor(ctx: SetupContext, id: AgentId): ConfigTarget | undefined {
   const own = OWN_MCP_ENTRY[id];
   if (own) {
     const file = id === "vscode" ? ownMcpFileOf(id, own.file, ctx.env, ctx.home) : agentPath(ctx, id, own.file); // D-WIN-VSCODE-MCP-1
-    const format: HostConfigFormat = file.endsWith(".toml") ? "toml" : id === "vscode" ? "jsonc" : "json";
+    const format: HostConfigFormat = file.endsWith(".toml") ? "toml" : id === "vscode" || devinJsoncFile(id, file) ? "jsonc" : "json";
     const also = own.also?.map(([k, v]): [readonly string[], unknown] => [k, v]);
     // #1327 D-1327-CODEX-ENV-1: Codex Desktop starts the MCP server with a short env allowlist that drops CODEX_HOME; the
     // entry's env table carries the Codex home setup wrote into, so the server (and its doctor) reads the same dir.

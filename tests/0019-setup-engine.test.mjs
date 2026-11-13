@@ -165,7 +165,7 @@ rl.on("line", (l) => {
   test("registry: devin MCP entry, hook file and skill dir sit in ~/.config/devin", () => {
     const row = buildRegistry({ home: "/h", pkgDir: "/abs/pkg", env: {}, platform: "linux" }).find((r) => r.id === "devin");
     assert.equal(row.config.file, path.join("/h", ".config", "devin", "mcp_config.json"));
-    assert.equal(row.config.format, "json");
+    assert.equal(row.config.format, "jsonc"); // Devin documents mcp_config.json as JSONC
     assert.deepEqual(row.config.key, ["mcpServers", "context-mode"]);
     assert.equal(row.hookInstall.kind, "file");
     assert.equal(row.hookInstall.file, path.join("/h", ".config", "devin", "config.json"));
@@ -198,10 +198,12 @@ rl.on("line", (l) => {
       assert.equal(devinDirOf({ XDG_CONFIG_HOME: "/xdg cfg" }, "/h", platform), path.posix.join("/xdg cfg", "devin"), platform);
       assert.equal(devinDirOf({}, "/h", platform), path.posix.join("/h", ".config", "devin"), platform);
       assert.equal(devinDirOf({ XDG_CONFIG_HOME: "" }, "/h", platform), path.posix.join("/h", ".config", "devin"), platform + ": empty counts as unset");
+      const dir = devinDirOf({ XDG_CONFIG_HOME: "/xdg cfg" }, "/h", platform);
       const row = buildRegistry({ home: "/h", pkgDir: "/abs/pkg", env: { XDG_CONFIG_HOME: "/xdg cfg" }, platform }).find((r) => r.id === "devin");
-      assert.equal(row.config.file, path.posix.join("/xdg cfg", "devin", "mcp_config.json"), platform);
-      assert.equal(row.hookInstall.file, path.posix.join("/xdg cfg", "devin", "config.json"), platform);
-      assert.equal(row.skillInstall.dir, path.posix.join("/xdg cfg", "devin", "skills"), platform);
+      // agentPath joins with the host path module, so compare against path.join of the same dir (fake-platform paths).
+      assert.equal(row.config.file, path.join(dir, "mcp_config.json"), platform);
+      assert.equal(row.hookInstall.file, path.join(dir, "config.json"), platform);
+      assert.equal(row.skillInstall.dir, path.join(dir, "skills"), platform);
     }
   });
 
@@ -218,6 +220,29 @@ rl.on("line", (l) => {
     assert.ok(existsSync(path.join(dir, "skills", "ctx-stats", "SKILL.md")), "skill written");
     const doc = await runDoctor({ home: s.home, pkgDir: s.pkgDir, env: s.env, agents: ["devin"] });
     assert.equal(doc.agents[0].status, "PASS", JSON.stringify(doc.agents[0].checks));
+  });
+
+  test("setup: devin config.json and mcp_config.json are JSONC — // comments survive setup, doctor and remove", async (t) => {
+    const s = sandbox(t);
+    const dir = devinDirOf(s.env, s.home);
+    const mcpText = '{\n  // user servers\n  "mcpServers": {\n    "other": { "command": "other-server" } // trailing\n  }\n}\n';
+    const cfgText = '{\n  // devin user config\n  "model": "devin-x",\n  "hooks": {}\n}\n';
+    put(path.join(dir, "mcp_config.json"), mcpText);
+    put(path.join(dir, "config.json"), cfgText);
+    const res = await runSetup({ home: s.home, pkgDir: s.pkgDir, env: s.env, agents: ["devin"], runId: "r1" });
+    assert.equal(res.exitCode, 0, JSON.stringify(res.agents.map((a) => [a.id, a.status, a.reason, a.checks])));
+    const mcpAfter = readFileSync(path.join(dir, "mcp_config.json"), "utf8");
+    const cfgAfter = readFileSync(path.join(dir, "config.json"), "utf8");
+    assert.ok(mcpAfter.includes("// user servers") && mcpAfter.includes("// trailing"), "mcp_config.json comments kept");
+    assert.ok(cfgAfter.includes("// devin user config"), "config.json comment kept");
+    assert.ok(mcpAfter.includes('"context-mode"'), "own MCP entry written");
+    assert.ok(cfgAfter.includes('"hooks"') && cfgAfter.includes("PreToolUse"), "hooks written under the hooks key");
+    const doc = await runDoctor({ home: s.home, pkgDir: s.pkgDir, env: s.env, agents: ["devin"] });
+    assert.equal(doc.agents[0].status, "PASS", JSON.stringify(doc.agents[0].checks));
+    const rm = runRemove({ home: s.home, env: s.env });
+    assert.equal(rm.exitCode, 0, rm.error);
+    assert.equal(readFileSync(path.join(dir, "mcp_config.json"), "utf8"), mcpText, "remove restores mcp_config.json byte for byte");
+    assert.equal(readFileSync(path.join(dir, "config.json"), "utf8"), cfgText, "remove restores config.json byte for byte");
   });
 
   test("instruction files: the allowlist guard refuses every routing-instruction file", () => {
