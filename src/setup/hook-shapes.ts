@@ -72,4 +72,6 @@ export const HOOK_SHAPES: Readonly<Record<AgentId, ((row: AdapterRow, cmd: strin
   zcode: zcodeShape,
   pi: null,
   opencode: null,
+  // Devin user config.json "hooks" key holds the Claude-nested event map (merged under "hooks" by the engine).
+  devin: (row, cmd) => nestedShape(row, cmd, seconds(row), true),
 };

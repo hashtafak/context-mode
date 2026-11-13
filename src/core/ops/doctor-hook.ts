@@ -85,6 +85,7 @@ function loadFixture(bundleDir: string, agent: AgentId): FixtureEntry | { cause:
 // D-D5-ALL-AGENTS-1: the payload key that carries the project dir. OpenCode's plugin sends `directory` (adapters/opencode.ts decode).
 const CWD_KEY: Readonly<Record<AgentId, string>> = {
   "claude-code": "cwd", codex: "cwd", gemini: "cwd", qwen: "cwd", "copilot-cli": "cwd", vscode: "cwd", kiro: "cwd", zcode: "cwd", pi: "cwd", opencode: "directory",
+  devin: "cwd", // Devin sends no cwd; decode reads DEVIN_PROJECT_DIR || process.cwd(), the recorded field is inert
 };
 
 /** The fixture payload with the agent's cwd key set to the project worktree: a recorded /tmp/project is no repository and would log a hook error each run. */

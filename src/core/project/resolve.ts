@@ -39,6 +39,7 @@ function sourceOf(agent: AgentId): ProjectSourceKind {
     case "qwen":
     case "zcode":
     case "opencode":
+    case "devin": // Devin spawns the MCP server with cwd = project root (spawn-cwd)
       return "spawn-cwd";
     case "pi":
       return "pi:ctx.cwd";

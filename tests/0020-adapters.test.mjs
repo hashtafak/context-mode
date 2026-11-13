@@ -18,6 +18,7 @@ import * as kiro from "../src/adapters/kiro.ts";
 import * as zcode from "../src/adapters/zcode.ts";
 import * as pi from "../src/adapters/pi.ts";
 import * as opencode from "../src/adapters/opencode.ts";
+import * as devin from "../src/adapters/devin.ts";
 import { CLIENT_NAME_TO_PLATFORM } from "../src/core/contracts/client-map.ts";
 import { HOST_SHAPES, replyErrors, shapeErrors } from "../src/core/ops/hook-shape.ts";
 import { spawnSync } from "node:child_process";
@@ -33,6 +34,7 @@ import * as __m3 from "../src/adapters/kiro.ts";
 import * as __m4 from "../src/adapters/qwen.ts";
 import * as __m5 from "../src/adapters/vscode.ts";
 import * as __m6 from "../src/adapters/zcode.ts";
+import * as __m7 from "../src/adapters/devin.ts";
 
 // Serial describes: kiro tests set process.env.USER_PROMPT and claude-code tests spawn the hook; the rest are sync and gain nothing from concurrency.
 describe("ADR-0020 adapters", () => {
@@ -55,6 +57,7 @@ describe("ADR-0020 adapters", () => {
       zcode: ["hooks+mcp", "spawn-cwd", "mcp__context-mode__", "sessionstart", "none", 5000, "deny-reason"],
       pi: ["in-process", "pi:ctx.cwd", "", "pi-flag", "none", 0, "deny-reason"],
       opencode: ["in-process", "spawn-cwd", "", "opencode-cache", "none", 0, "deny-reason"],
+      devin: ["hooks+mcp", "spawn-cwd", "mcp__context-mode__", "pending-flag", "none", 5000, "deny-reason"],
     };
 
     const CLAUDE_NATIVE = { shell: ["Bash"], read: ["Read"], grep: ["Grep"], webfetch: ["WebFetch"], edit: ["Write", "Edit", "NotebookEdit"] };
@@ -71,6 +74,7 @@ describe("ADR-0020 adapters", () => {
       zcode: CLAUDE_NATIVE,
       pi: { shell: ["bash", "powershell"], read: ["read"] }, // D-HA-PI-NAMES-1, D-R38-PI-PWSH-1
       opencode: { shell: ["bash"], read: ["read"] }, // D-HF-OPENCODE-SHELL-1, D-R44-OC-READ-1
+      devin: { shell: ["exec", "get_output"], read: ["read", "notebook_read"], grep: ["grep", "glob", "find_file_by_name"], webfetch: ["webfetch"], edit: ["edit", "write", "apply_patch", "notebook_edit"] },
     };
 
     const CLAUDE_EVENTS = { SessionStart: "SessionStart", UserPromptSubmit: "UserPromptSubmit", PreToolUse: "PreToolUse", PostToolUse: "PostToolUse" };
@@ -87,9 +91,10 @@ describe("ADR-0020 adapters", () => {
       pi: { SessionStart: "session_start", UserPromptSubmit: "input", PreToolUse: "tool_call", PostToolUse: "tool_result" },
       // Usage: OpenCode step-finish cost row (DEVIATIONS D-M5-arch-2).
       opencode: { SessionStart: "context", UserPromptSubmit: "prompt", PreToolUse: "execute.before", PostToolUse: "execute.after", PreCompact: "compaction", Usage: "step-finish" },
+      devin: { SessionStart: "SessionStart", UserPromptSubmit: "UserPromptSubmit", PreToolUse: "PreToolUse", PostToolUse: "PostToolUse", PreCompact: "PostCompaction" },
     };
 
-    const MODULES = { "claude-code": claudeCode, codex, gemini, qwen, "copilot-cli": copilotCli, vscode, kiro, zcode, pi, opencode };
+    const MODULES = { "claude-code": claudeCode, codex, gemini, qwen, "copilot-cli": copilotCli, vscode, kiro, zcode, pi, opencode, devin };
 
     test("ADAPTERS has one row per AgentId, in AGENT_IDS order (impl/10 §1.2, §1.3)", () => {
       assert.deepEqual(ADAPTERS.map((r) => r.id), [...AGENT_IDS]);
@@ -124,7 +129,7 @@ describe("ADR-0020 adapters", () => {
       for (const [id, mod] of Object.entries(MODULES)) assert.equal(getAdapter(id).toolNamePrefix, mod.TOOL_NAME_PREFIX, id);
     });
 
-    test("all 10 adapters are wired to their own decode/encode (no not-built stub)", () => {
+    test("all 11 adapters are wired to their own decode/encode (no not-built stub)", () => {
       for (const [id, mod] of Object.entries(MODULES)) {
         const r = getAdapter(id);
         assert.equal(r.decode, mod.decode, id + " decode");
@@ -140,6 +145,7 @@ describe("ADR-0020 adapters", () => {
         vscode: { hook_event_name: "PreToolUse", session_id: "s", cwd: "/p", tool_name: "runInTerminal", tool_input: { command: "ls" } },
         kiro: { hook_event_name: "PreToolUse", session_id: "s", cwd: "/p", tool_name: "execute_bash", tool_input: { command: "ls" } },
         zcode: { hook_event_name: "PreToolUse", session_id: "s", cwd: "/p", tool_name: "Bash", tool_input: { command: "ls" } },
+        devin: { hook_event_name: "PreToolUse", session_id: "s", prompt_id: "p", tool_name: "exec", tool_input: { command: "ls" } },
       };
       for (const [id, raw] of Object.entries(payloads)) {
         const r = getAdapter(id);
@@ -236,6 +242,7 @@ describe("ADR-0020 adapters", () => {
       zcode: { kind: "home-file", path: ".zcode/cli/config.json" },
       pi: { kind: "in-process", path: "pi/index.js" },
       opencode: { kind: "in-process", path: "opencode/plugin.js" },
+      devin: { kind: "home-file", path: ".config/devin/config.json" },
     };
     const SKILL_CHANNEL = {
       "claude-code": { kind: "package", path: "skills" }, // D-R33-CC-SKILLS-1: shared with gemini and qwen
@@ -248,6 +255,7 @@ describe("ADR-0020 adapters", () => {
       zcode: { kind: "home-dir", path: ".zcode/skills" },
       pi: { kind: "package", path: "pi/skills" },
       opencode: { kind: "home-dir", path: ".config/opencode/skills" },
+      devin: { kind: "home-dir", path: ".config/devin/skills" },
     };
 
     test("every row has a hookChannel and a skillChannel with a non-empty path (ADR-0020, no exception rows)", () => {
@@ -305,6 +313,7 @@ describe("ADR-0020 adapters", () => {
         zcode: ["hooks+mcp", "spawn-cwd", "mcp__context-mode__", "sessionstart", "none", "deny-reason"],
         pi: ["in-process", "pi:ctx.cwd", "", "pi-flag", "none", "deny-reason"],
         opencode: ["in-process", "spawn-cwd", "", "opencode-cache", "none", "deny-reason"],
+        devin: ["hooks+mcp", "spawn-cwd", "mcp__context-mode__", "pending-flag", "none", "deny-reason"],
       };
       for (const r of ADAPTERS) {
         assert.deepEqual(
@@ -337,6 +346,10 @@ describe("ADR-0020 adapters", () => {
       assert.deepEqual(getAdapter("vscode").nativeTools, { shell: ["run_in_terminal", "runTerminalCommand", "bash", "powershell"], read: ["read_file", "view"], webfetch: ["fetch_webpage", "web_fetch"] }); // D-HF-VSCODE-PROJECT-1, D-N7-VSCODE-TOOLS-1
       assert.deepEqual(getAdapter("kiro").nativeTools, { shell: ["execute_bash", "execute_pwsh", "shell"] }); // D-HF-KIRO-SHELL-1, D-N7-KIRO-1
       assert.deepEqual(getAdapter("opencode").nativeTools, { shell: ["bash"], read: ["read"] }); // D-HF-OPENCODE-SHELL-1, D-R44-OC-READ-1
+      assert.deepEqual(getAdapter("devin").nativeTools, {
+        shell: ["exec", "get_output"], read: ["read", "notebook_read"], grep: ["grep", "glob", "find_file_by_name"],
+        webfetch: ["webfetch"], edit: ["edit", "write", "apply_patch", "notebook_edit"],
+      });
       for (const r of ADAPTERS) assert.equal(r.execReadOnlyHint, r.id === "codex", r.id);
     });
 
@@ -362,6 +375,9 @@ describe("ADR-0020 adapters", () => {
       });
       assert.deepEqual(getAdapter("opencode").eventMap, {
         SessionStart: "context", UserPromptSubmit: "prompt", PreToolUse: "execute.before", PostToolUse: "execute.after", PreCompact: "compaction", Usage: "step-finish", // D-M5-arch-2
+      });
+      assert.deepEqual(getAdapter("devin").eventMap, {
+        SessionStart: "SessionStart", UserPromptSubmit: "UserPromptSubmit", PreToolUse: "PreToolUse", PostToolUse: "PostToolUse", PreCompact: "PostCompaction",
       });
     });
 
@@ -1962,6 +1978,135 @@ describe("ADR-0020 adapters", () => {
 
     test("encode replace is a no-op on ZCode (no replace field documented)", () => {
       assert.deepEqual(encode({ ...pre, event: "PostToolUse" }, { kind: "replace", output: "x" }), { stdout: "", exitCode: 0 });
+    });
+  });
+
+  describe("ADR-0020 devin adapter", () => {
+    const { decode } = __m7;
+    const { encode } = __m7;
+    const { TOOL_NAME_PREFIX } = __m7;
+
+    // Unit tests for src/adapters/devin.ts (docs/superpowers/specs/2026-11-13-devin-agent-design.md;
+    // hook contract verified against Devin CLI 3000.12.28). Devin stdin: {hook_event_name, tool_name,
+    // tool_input, session_id, prompt_id}; PostToolUse adds tool_response {success, output, error} with
+    // output a plain string; there is NO cwd field (DEVIN_PROJECT_DIR or the hook's cwd).
+    // PostCompaction decodes as canonical PreCompact and encodes back under its native name.
+
+
+    const cwd = process.env.DEVIN_PROJECT_DIR || process.cwd();
+    const base = { session_id: "d-1", prompt_id: "p-1" };
+    const head = { agent: "devin", sessionId: "d-1", cwd };
+
+    test("own prefix is mcp__context-mode__ (Devin MCP tool names)", () => {
+      assert.equal(TOOL_NAME_PREFIX, "mcp__context-mode__");
+    });
+
+    test("decode PreToolUse exec -> Bash; cwd is DEVIN_PROJECT_DIR or the hook cwd (no cwd field)", () => {
+      const ev = decode({ ...base, hook_event_name: "PreToolUse", tool_name: "exec", tool_input: { command: "ls" } });
+      assert.equal(ev.event, "PreToolUse");
+      assert.equal(ev.agent, "devin");
+      assert.equal(ev.sessionId, "d-1");
+      assert.equal(ev.cwd, cwd);
+      assert.equal(ev.tool.name, "exec");
+      assert.equal(ev.tool.canonicalName, "Bash");
+      assert.deepEqual(ev.tool.input, { command: "ls" });
+    });
+
+    test("decode maps every native tool name to its canonical class", () => {
+      const want = {
+        exec: "Bash", get_output: "Bash",
+        read: "Read", notebook_read: "Read",
+        grep: "Grep", glob: "Grep", find_file_by_name: "Grep",
+        webfetch: "WebFetch",
+        edit: "Edit", write: "Write", apply_patch: "Edit", notebook_edit: "Edit",
+      };
+      for (const [native, canonical] of Object.entries(want)) {
+        const ev = decode({ ...base, hook_event_name: "PreToolUse", tool_name: native, tool_input: {} });
+        assert.equal(ev.tool.canonicalName, canonical, native);
+      }
+    });
+
+    test("decode own tool mcp__context-mode__<tool> to bare ctx_*; other mcp__ servers to mcp:<server>:<tool>", () => {
+      const own = decode({ ...base, hook_event_name: "PreToolUse", tool_name: "mcp__context-mode__ctx_execute", tool_input: { code: "1" } });
+      assert.equal(own.tool.canonicalName, "ctx_execute");
+      const other = decode({ ...base, hook_event_name: "PreToolUse", tool_name: "mcp__linear__get_issue", tool_input: {} });
+      assert.equal(other.tool.canonicalName, "mcp:linear:get_issue");
+    });
+
+    test("decode PostToolUse reads tool_response {success, output, error}: output string is the text", () => {
+      const ok = decode({ ...base, hook_event_name: "PostToolUse", tool_name: "exec", tool_input: { command: "ls" }, tool_response: { success: true, output: "hello", error: null } });
+      assert.equal(ok.event, "PostToolUse");
+      assert.equal(ok.tool.canonicalName, "Bash");
+      assert.deepEqual(ok.result, { isError: false, bytes: 5, text: "hello" });
+      const bad = decode({ ...base, hook_event_name: "PostToolUse", tool_name: "exec", tool_input: {}, tool_response: { success: false, output: "", error: "boom" } });
+      assert.equal(bad.result.isError, true);
+      // Devin never sends tool_use_id: the callId is the claude-code FNV-1a fallback label.
+      assert.match(ok.tool.callId, /^h[0-9a-f]{8}$/);
+    });
+
+    test("decode SessionStart reads source startup/resume", () => {
+      assert.equal(decode({ ...base, hook_event_name: "SessionStart", source: "startup" }).source, "startup");
+      assert.equal(decode({ ...base, hook_event_name: "SessionStart", source: "resume" }).source, "resume");
+    });
+
+    test("decode PostCompaction -> canonical PreCompact", () => {
+      assert.equal(decode({ ...base, hook_event_name: "PostCompaction" }).event, "PreCompact");
+    });
+
+    test("decode UserPromptSubmit reads prompt", () => {
+      assert.equal(decode({ ...base, hook_event_name: "UserPromptSubmit", prompt: "hi" }).prompt, "hi");
+    });
+
+    test("decode throws on unknown events, Claude names and non-object payloads", () => {
+      for (const name of ["BeforeTool", "PreToolUseFailure", "SessionEnd", "Stop", undefined]) {
+        assert.throws(() => decode({ ...base, hook_event_name: name }), /devin: unknown hook event/);
+      }
+      assert.throws(() => decode(undefined), /devin: hook payload is not a JSON object/);
+      assert.throws(() => decode(null));
+      assert.throws(() => decode([1]));
+    });
+
+    // ---------- encode ----------
+    const ev = (event) => ({ event, agent: "devin", sessionId: "d-1", cwd });
+    const json = (out) => JSON.parse(out.stdout);
+
+    test("encode allow is empty stdout, exit 0, on every event", () => {
+      for (const e of ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PreCompact"]) {
+        assert.deepEqual(encode(ev(e), { kind: "allow" }), { stdout: "", exitCode: 0 });
+      }
+    });
+
+    test("encode hint writes hookSpecificOutput with the NATIVE hookEventName echo + additionalContext", () => {
+      for (const e of ["SessionStart", "UserPromptSubmit", "PostToolUse"]) {
+        const out = encode(ev(e), { kind: "hint", text: "ctx note", onceKey: "k" });
+        assert.equal(out.exitCode, 0);
+        assert.deepEqual(json(out), { hookSpecificOutput: { hookEventName: e, additionalContext: "ctx note" } });
+      }
+      // PreCompact is not a hint event either: dropped like PreToolUse.
+      assert.deepEqual(encode(ev("PreCompact"), { kind: "hint", text: "x", onceKey: "k" }), { stdout: "", exitCode: 0 });
+    });
+
+    test("encode hint on PreToolUse is dropped (Devin ignores additionalContext there)", () => {
+      assert.deepEqual(encode(ev("PreToolUse"), { kind: "hint", text: "use ctx_execute", onceKey: "k" }), { stdout: "", exitCode: 0 });
+    });
+
+    test("encode deny is the top-level {decision:\"block\",reason} shape, exit 0; rewritten first", () => {
+      const out = encode(ev("PreToolUse"), { kind: "deny", reason: "why", rewritten: "node /x/run.mjs abc" });
+      assert.equal(out.exitCode, 0);
+      assert.deepEqual(json(out), { decision: "block", reason: "node /x/run.mjs abc\nwhy" });
+      assert.deepEqual(json(encode(ev("PreToolUse"), { kind: "deny", reason: "why" })), { decision: "block", reason: "why" });
+    });
+
+    test("encode replace on PostToolUse writes hookSpecificOutput.updatedToolOutput (the output string)", () => {
+      const out = encode(ev("PostToolUse"), { kind: "replace", output: "short" });
+      assert.equal(out.exitCode, 0);
+      assert.deepEqual(json(out), { hookSpecificOutput: { hookEventName: "PostToolUse", updatedToolOutput: "short" } });
+    });
+
+    test("encode replace on other events is empty", () => {
+      for (const e of ["SessionStart", "UserPromptSubmit", "PreToolUse", "PreCompact"]) {
+        assert.deepEqual(encode(ev(e), { kind: "replace", output: "x" }), { stdout: "", exitCode: 0 });
+      }
     });
   });
 

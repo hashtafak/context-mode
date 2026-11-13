@@ -370,7 +370,7 @@ const READ_IMAGES_AND_PDF: readonly ReadMediaType[] = Object.freeze([...READ_IMA
  *  A host with no checked media path keeps the size deny for every file. */
 export const READ_MEDIA_BY_AGENT: Readonly<Record<AgentId, readonly ReadMediaType[]>> = Object.freeze({
   "claude-code": READ_IMAGES_AND_PDF, gemini: READ_IMAGES_AND_PDF, qwen: READ_IMAGES_AND_PDF, opencode: READ_IMAGES_AND_PDF,
-  pi: READ_IMAGES, vscode: READ_IMAGES, zcode: READ_IMAGES, "copilot-cli": [], codex: [], kiro: [],
+  pi: READ_IMAGES, vscode: READ_IMAGES, zcode: READ_IMAGES, "copilot-cli": [], codex: [], kiro: [], devin: [],
 });
 
 // impl/09 §4 hooks dispatch (DEVIATIONS D-M3-H2-1..6). Keys and texts the dispatch reads; no numbers.
@@ -628,6 +628,7 @@ export const EXTENSIONS_DIR_NAME = "extensions"; // Gemini/Qwen: <agent home>/ex
 export const AGENT_HOME_DIR: Readonly<Record<AgentId, readonly string[]>> = Object.freeze({
   "claude-code": [".claude"], codex: [".codex"], gemini: [".gemini"], qwen: [".qwen"], "copilot-cli": [".copilot"],
   vscode: [".vscode"], kiro: [".kiro"], zcode: [".zcode"], pi: [".pi"], opencode: [".config", "opencode"],
+  devin: [".config", "devin"], // POSIX; win32 is %APPDATA%\devin (devinDirOf, Task 2)
 });
 export const UPGRADE_RESTART_LINE = "restart needed"; // impl/07 §6 step 8
 export const UPGRADE_HOST_AREA = "host update"; // impl/07 §6 step 4
@@ -750,6 +751,9 @@ export const HOOK_HOST_FILE: Readonly<Record<AgentId, {
   zcode: { root: "home", file: [".zcode", "cli", "config.json"], key: ["hooks", "events"], shape: "zcode", timeoutKey: "timeoutMs", matcher: true },
   pi: null,
   opencode: null,
+  // Devin user hooks are the "hooks" key inside ~/.config/devin/config.json (%APPDATA%\devin on win32);
+  // the value is the Claude-nested event map {<Event>: [{matcher, hooks:[{type,command,timeout}]}]}.
+  devin: { root: "home", file: [".config", "devin", "config.json"], key: ["hooks"], shape: "nested", timeoutKey: "timeout", matcher: true },
 });
 export const TOOL_HOOK_EVENTS: readonly string[] = Object.freeze(["PreToolUse", "PostToolUse"]); // canonical events that carry the matcher
 export const HOOK_MATCHER_FIELD = "matcher";
@@ -841,6 +845,7 @@ export const UPGRADE_HOST_COMMAND: Readonly<Record<AgentId, string>> = Object.fr
   vscode: "npm i -g context-mode && context-mode setup --agents vscode",
   kiro: "npm i -g context-mode && context-mode setup --agents kiro",
   zcode: "npm i -g context-mode && context-mode setup --agents zcode",
+  devin: "npm i -g context-mode && context-mode setup --agents devin",
 });
 // Old install forms, kept so uninstall and doctor still find and remove them (ADR-0011 Pi and OpenCode rows).
 export const PI_GIT_PACKAGE = "git:github.com/mksglu/context-mode@release"; // old Pi git entry (uninstall removes it)

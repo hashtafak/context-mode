@@ -61,6 +61,10 @@ export function hookSample(id: AgentId, cwd: string, text: string): HookSample {
     case "kiro":
     case "zcode":
       return { effect, payload: { hook_event_name: event, session_id: SAMPLE_SESSION, cwd, tool_name: tool, tool_input: command } };
+    case "devin":
+      // Devin sends no cwd (decode reads DEVIN_PROJECT_DIR || the hook's cwd; the runner spawns with cwd=proj)
+      // and tool_response is {success, output, error} with output the plain string.
+      return { effect, payload: { hook_event_name: event, session_id: SAMPLE_SESSION, prompt_id: "doctor", tool_name: tool, tool_input: command, tool_response: { success: true, output: text, error: null } } };
   }
 }
 

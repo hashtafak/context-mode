@@ -14,6 +14,7 @@ import * as kiro from "./kiro.ts";
 import * as zcode from "./zcode.ts";
 import * as pi from "./pi.ts";
 import * as opencode from "./opencode.ts";
+import * as devin from "./devin.ts";
 
 const CLAUDE_EVENTS = { SessionStart: "SessionStart", UserPromptSubmit: "UserPromptSubmit", PreToolUse: "PreToolUse", PostToolUse: "PostToolUse" };
 const CLAUDE_TOOLS = { shell: ["Bash"], read: ["Read"], grep: ["Grep"], webfetch: ["WebFetch"], edit: ["Write", "Edit", "NotebookEdit"] };
@@ -112,6 +113,23 @@ export const ADAPTERS: readonly AdapterRow[] = Object.freeze([
     hookChannel: { kind: "in-process", path: "opencode/plugin.js" }, skillChannel: { kind: "home-dir", path: ".config/opencode/skills" }, // ADR-0020
     decode: opencode.decode, encode: opencode.encode, toCanonicalTool: opencode.toCanonicalTool,
   },
+  {
+    // Devin CLI (fork agent, docs/superpowers/specs/2026-11-13-devin-agent-design.md): hooks live in the user
+    // config.json "hooks" key, skills in ~/.config/devin/skills; PostCompaction decodes as PreCompact.
+    id: "devin", installMode: "hooks+mcp", projectSource: "spawn-cwd",
+    toolNamePrefix: devin.TOOL_NAME_PREFIX,
+    nativeTools: { shell: ["exec", "get_output"], read: ["read", "notebook_read"],
+      grep: ["grep", "glob", "find_file_by_name"], webfetch: ["webfetch"],
+      edit: ["edit", "write", "apply_patch", "notebook_edit"] },
+    execReadOnlyHint: false,
+    eventMap: { SessionStart: "SessionStart", UserPromptSubmit: "UserPromptSubmit",
+      PreToolUse: "PreToolUse", PostToolUse: "PostToolUse", PreCompact: "PostCompaction" },
+    compactDelivery: "pending-flag", compactSummary: "none",
+    hookTimeoutMs: HOOK_TIMEOUT_MS, denyChannel: "deny-reason",
+    hookChannel: { kind: "home-file", path: ".config/devin/config.json" },
+    skillChannel: { kind: "home-dir", path: ".config/devin/skills" },
+    decode: devin.decode, encode: devin.encode,
+  },
 ] satisfies Row[]);
 
 const BY_ID = new Map<AgentId, AdapterRow>(ADAPTERS.map((r) => [r.id, r]));
@@ -122,7 +140,7 @@ const BY_ID = new Map<AgentId, AdapterRow>(ADAPTERS.map((r) => [r.id, r]));
 // gemini: AfterTool decision deny + reason replaces the result (D-HA-GEMINI-REPLACE-1).
 // opencode: the plugin sets result.content (2.x) or output.output (1.19) in-process; both hosts read that object back
 // after the hook (D-R54-OC-REPLACE-1, #1347). Not in DUMP_REPLACE_ROWS: execute.before can deny a large cat first.
-const REPLACE_ROWS: ReadonlySet<AgentId> = new Set<AgentId>(["claude-code", "gemini", "copilot-cli", "pi", "opencode"]);
+const REPLACE_ROWS: ReadonlySet<AgentId> = new Set<AgentId>(["claude-code", "gemini", "copilot-cli", "pi", "opencode", "devin"]); // devin: PostToolUse updatedToolOutput (v3000.11.205+)
 
 export function hasReplace(row: AdapterRow): boolean {
   return REPLACE_ROWS.has(row.id);
@@ -131,7 +149,7 @@ export function hasReplace(row: AdapterRow): boolean {
 // D-HA-GEMINI-DUMP-1: rows where a one-file shell dump over the cap runs and PostToolUse replaces it (D-M7-RR-1).
 // gemini is out: its BeforeTool deny stops the tool before it runs (gemini-cli docs/hooks/reference.md BeforeTool),
 // so a large `cat` is denied with the Read redirect, as on every other deny host.
-const DUMP_REPLACE_ROWS: ReadonlySet<AgentId> = new Set<AgentId>(["claude-code", "copilot-cli", "pi"]);
+const DUMP_REPLACE_ROWS: ReadonlySet<AgentId> = new Set<AgentId>(["claude-code", "copilot-cli", "pi", "devin"]);
 
 export function dumpRunsThenReplaces(row: AdapterRow): boolean {
   return DUMP_REPLACE_ROWS.has(row.id) && hasReplace(row);
@@ -139,7 +157,7 @@ export function dumpRunsThenReplaces(row: AdapterRow): boolean {
 
 // DECISIONS-r11 (B): rows whose encode carries a UserPromptSubmit hint as additionalContext. Only these rows
 // get turn-boundary recall after a compaction; pi and opencode keep their one compact path (ADR-0001).
-const RECALL_ROWS: ReadonlySet<AgentId> = new Set<AgentId>(["claude-code", "codex", "gemini", "qwen", "copilot-cli", "vscode", "zcode", "kiro"]); // D-R33-KIRO-RECALL-1
+const RECALL_ROWS: ReadonlySet<AgentId> = new Set<AgentId>(["claude-code", "codex", "gemini", "qwen", "copilot-cli", "vscode", "zcode", "kiro", "devin"]); // D-R33-KIRO-RECALL-1; devin: UserPromptSubmit additionalContext
 
 export function hasRecall(row: AdapterRow): boolean {
   return RECALL_ROWS.has(row.id);

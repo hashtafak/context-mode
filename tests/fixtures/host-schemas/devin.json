@@ -1,0 +1,96 @@
+{
+  "host": "devin",
+  "source": "Devin CLI hook reply contract (docs.devin.ai/cli/extensibility/hooks + share/devin/docs/extensibility/hooks/lifecycle-hooks.mdx, verified on devin 3000.12.28): top-level decision approve|block + reason; hookSpecificOutput.{hookEventName (must echo the firing event's native name), additionalContext}; updatedInput on PreToolUse; updatedToolOutput on PostToolUse since v3000.11.205. additionalContext is silently dropped on PreToolUse. updatedToolOutput's exact value shape is an open spike item (design spec) so it is left unconstrained here.",
+  "output": {
+    "PreToolUse": {
+      "title": "Devin PreToolUse reply",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decision": { "type": "string", "enum": ["approve", "block"] },
+        "reason": { "type": "string" },
+        "continue": { "type": "boolean" },
+        "stopReason": { "type": "string" },
+        "suppressOutput": { "type": "boolean" },
+        "systemMessage": { "type": "string" },
+        "hookSpecificOutput": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "hookEventName": { "type": "string", "const": "PreToolUse" },
+            "additionalContext": { "type": "string" },
+            "updatedInput": { "description": "any JSON value (z.unknown()-like)" }
+          },
+          "required": ["hookEventName"]
+        }
+      }
+    },
+    "PostToolUse": {
+      "title": "Devin PostToolUse reply",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decision": { "type": "string", "enum": ["approve", "block"] },
+        "reason": { "type": "string" },
+        "continue": { "type": "boolean" },
+        "stopReason": { "type": "string" },
+        "suppressOutput": { "type": "boolean" },
+        "systemMessage": { "type": "string" },
+        "hookSpecificOutput": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "hookEventName": { "type": "string", "const": "PostToolUse" },
+            "additionalContext": { "type": "string" },
+            "updatedToolOutput": { "description": "replace value; bare output string expected, exact host shape is an open spike item" }
+          },
+          "required": ["hookEventName"]
+        }
+      }
+    },
+    "UserPromptSubmit": {
+      "title": "Devin UserPromptSubmit reply",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decision": { "type": "string", "enum": ["approve", "block"] },
+        "reason": { "type": "string" },
+        "continue": { "type": "boolean" },
+        "stopReason": { "type": "string" },
+        "suppressOutput": { "type": "boolean" },
+        "systemMessage": { "type": "string" },
+        "hookSpecificOutput": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "hookEventName": { "type": "string", "const": "UserPromptSubmit" },
+            "additionalContext": { "type": "string" }
+          },
+          "required": ["hookEventName"]
+        }
+      }
+    },
+    "SessionStart": {
+      "title": "Devin SessionStart reply",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decision": { "type": "string", "enum": ["approve", "block"] },
+        "reason": { "type": "string" },
+        "continue": { "type": "boolean" },
+        "stopReason": { "type": "string" },
+        "suppressOutput": { "type": "boolean" },
+        "systemMessage": { "type": "string" },
+        "hookSpecificOutput": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "hookEventName": { "type": "string", "const": "SessionStart" },
+            "additionalContext": { "type": "string" }
+          },
+          "required": ["hookEventName"]
+        }
+      }
+    }
+  }
+}
