@@ -1222,13 +1222,13 @@ describe("ADR-0007: Claude Code cwd source (D-FU-PS-1)", () => {
     mkdirSync(foreign);
     const expected = {
       codex: "arg:--agent+cwd", "copilot-cli": "arg:--agent+cwd", kiro: "arg:--agent+cwd",
-      vscode: "arg:workspaceFolder", gemini: "spawn-cwd", qwen: "spawn-cwd", zcode: "spawn-cwd", opencode: "spawn-cwd",
+      vscode: "arg:workspaceFolder", gemini: "spawn-cwd", qwen: "spawn-cwd", zcode: "spawn-cwd", opencode: "spawn-cwd", devin: "spawn-cwd",
       pi: "pi:ctx.cwd", "claude-code": "env:CLAUDE_PROJECT_DIR",
     };
     assert.deepEqual([...AGENT_IDS].sort(), Object.keys(expected).sort());
     for (const agent of AGENT_IDS) assert.equal(getAdapter(agent).projectSource, expected[agent], agent);
     const env = { CLAUDE_PROJECT_DIR: foreign };
-    for (const agent of ["codex", "copilot-cli", "kiro", "gemini", "qwen", "zcode", "opencode"]) {
+    for (const agent of ["codex", "copilot-cli", "kiro", "gemini", "qwen", "zcode", "opencode", "devin"]) {
       const ctx = resolveProject(agent, { env, argv: ["--agent", agent], cwd: own });
       assert.equal(ctx.worktree, realpathSync.native(own), agent);
       assert.equal(ctx.source, expected[agent], agent);
