@@ -74,7 +74,7 @@ describe("ADR-0020 adapters", () => {
       zcode: CLAUDE_NATIVE,
       pi: { shell: ["bash", "powershell"], read: ["read"] }, // D-HA-PI-NAMES-1, D-R38-PI-PWSH-1
       opencode: { shell: ["bash"], read: ["read"] }, // D-HF-OPENCODE-SHELL-1, D-R44-OC-READ-1
-      devin: { shell: ["exec", "get_output"], read: ["read", "notebook_read"], grep: ["grep", "glob", "find_file_by_name"], webfetch: ["webfetch"], edit: ["edit", "write", "apply_patch", "notebook_edit"] },
+      devin: { shell: ["exec", "get_output"], read: ["read", "notebook_read"], grep: ["grep", "glob", "find_file_by_name"], webfetch: ["webfetch", "web_search"], edit: ["edit", "write", "apply_patch", "notebook_edit"] },
     };
 
     const CLAUDE_EVENTS = { SessionStart: "SessionStart", UserPromptSubmit: "UserPromptSubmit", PreToolUse: "PreToolUse", PostToolUse: "PostToolUse" };
@@ -348,7 +348,7 @@ describe("ADR-0020 adapters", () => {
       assert.deepEqual(getAdapter("opencode").nativeTools, { shell: ["bash"], read: ["read"] }); // D-HF-OPENCODE-SHELL-1, D-R44-OC-READ-1
       assert.deepEqual(getAdapter("devin").nativeTools, {
         shell: ["exec", "get_output"], read: ["read", "notebook_read"], grep: ["grep", "glob", "find_file_by_name"],
-        webfetch: ["webfetch"], edit: ["edit", "write", "apply_patch", "notebook_edit"],
+        webfetch: ["webfetch", "web_search"], edit: ["edit", "write", "apply_patch", "notebook_edit"],
       });
       for (const r of ADAPTERS) assert.equal(r.execReadOnlyHint, r.id === "codex", r.id);
     });
@@ -2017,7 +2017,7 @@ describe("ADR-0020 adapters", () => {
         exec: "Bash", get_output: "Bash",
         read: "Read", notebook_read: "Read",
         grep: "Grep", glob: "Grep", find_file_by_name: "Grep",
-        webfetch: "WebFetch",
+        webfetch: "WebFetch", web_search: "WebFetch",
         edit: "Edit", write: "Write", apply_patch: "Edit", notebook_edit: "Edit",
       };
       for (const [native, canonical] of Object.entries(want)) {

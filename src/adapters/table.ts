@@ -119,7 +119,7 @@ export const ADAPTERS: readonly AdapterRow[] = Object.freeze([
     id: "devin", installMode: "hooks+mcp", projectSource: "spawn-cwd",
     toolNamePrefix: devin.TOOL_NAME_PREFIX,
     nativeTools: { shell: ["exec", "get_output"], read: ["read", "notebook_read"],
-      grep: ["grep", "glob", "find_file_by_name"], webfetch: ["webfetch"],
+      grep: ["grep", "glob", "find_file_by_name"], webfetch: ["webfetch", "web_search"], // web_search: Devin's real search tool
       edit: ["edit", "write", "apply_patch", "notebook_edit"] },
     execReadOnlyHint: false,
     eventMap: { SessionStart: "SessionStart", UserPromptSubmit: "UserPromptSubmit",

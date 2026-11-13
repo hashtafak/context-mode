@@ -7,8 +7,8 @@
 // dir is DEVIN_PROJECT_DIR or the hook's own cwd. Devin never sends tool_use_id: the callId is the
 // claude-code FNV-1a fallback label. additionalContext is silently dropped on PreToolUse, so hints ride
 // SessionStart / UserPromptSubmit / PostToolUse only. Deny is the top-level {"decision":"block","reason"}
-// on exit 0; replace is PostToolUse hookSpecificOutput.updatedToolOutput (the output string — the exact
-// host value shape is an open spike item, this is the documented intent).
+// on exit 0; replace is PostToolUse hookSpecificOutput.updatedToolOutput (the output string — verified
+// live on 3000.12.28: the bare string is what the host reads back).
 import type { CanonicalHookEvent, Decision, HookOutput, ToolCall, ToolResultInfo } from "../core/contracts/types.ts";
 
 export const TOOL_NAME_PREFIX = "mcp__context-mode__"; // Devin MCP tool names: mcp__<server>__<tool>
@@ -48,6 +48,7 @@ const NATIVE_TO_CANONICAL: Readonly<Record<string, string>> = {
   glob: "Grep",
   find_file_by_name: "Grep",
   webfetch: "WebFetch",
+  web_search: "WebFetch",
   edit: "Edit",
   write: "Write",
   apply_patch: "Edit",
@@ -143,7 +144,7 @@ export function encode(ev: CanonicalHookEvent, d: Decision, _extra?: string): Ho
       return { stdout: JSON.stringify({ decision: "block", reason: d.rewritten === undefined ? d.reason : d.rewritten + "\n" + d.reason }), exitCode: 0 };
     case "replace":
       // PostToolUse hookSpecificOutput.updatedToolOutput; the value is the output string (tool_response.output
-      // is a plain string). Whether Devin wants the bare string or a wrapped object is an open spike item.
+      // is a plain string), verified live on 3000.12.28.
       if (ev.event !== "PostToolUse") return EMPTY;
       return specific({ updatedToolOutput: d.output });
   }
