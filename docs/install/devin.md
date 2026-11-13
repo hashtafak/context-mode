@@ -26,7 +26,7 @@ To do the setup step by hand, run `context-mode setup --print devin` and follow 
 ## What setup changes
 
 - Adds the `context-mode` entry to `mcpServers` in the Devin MCP config: `mcp_config.json` in the Devin user dir.
-- Writes the hooks to the `hooks` key of `config.json` in the same dir: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse and PostCompaction. PreToolUse matches the shell, read, grep, edit and fetch tools plus the `mcp__context-mode__ctx_*` tools; PostToolUse matches the same plus every other MCP tool, so a large MCP result is replaced too.
+- Writes the hooks to the `hooks` key of `config.json` in the same dir: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse and PostCompaction. PreToolUse matches the shell, read, grep, edit and fetch tools (`webfetch`, `web_search`) plus the `mcp__context-mode__ctx_*` tools; PostToolUse matches the same plus every other MCP tool, so a large MCP result is replaced too.
 - Writes the skills `/ctx-doctor`, `/ctx-stats` and `/ctx-upgrade` to `skills/<name>/SKILL.md` in the same dir.
 - Effect: a large tool result is replaced by a short selection that names `ctx_search` (replace). This needs Devin CLI v3000.11.205 or later, which added PostToolUse `updatedToolOutput`; on an older CLI the replace is not applied.
 - Backs up each file first. A failed step is rolled back byte for byte.
@@ -50,6 +50,17 @@ context-mode setup --remove --agents devin
 ```
 
 It puts each touched file back. To remove the package too, see [Uninstall](./README.md#uninstall).
+
+## Enforcement strictness
+
+`CONTEXT_MODE_ENFORCE` sets how strictly context-mode applies its own rules, resolved on every hook call:
+
+- `off` — context-mode's own denies and the PostToolUse replace are skipped; the model sees the full output.
+- `voluntary` — context-mode's own denies are skipped; the replace still runs.
+- `moderate` — the default: denies and replace both run.
+- `aggressive` — currently the same as `moderate`.
+
+Set it as an environment variable (`CONTEXT_MODE_ENFORCE=off devin`) or per project in `<project>/.context-mode/enforce.json` as `{"level": "off"}`. Precedence: the env var wins over the file, the file wins over the default `moderate`. A set but unrecognized env value resolves to `moderate`. Your own deny rules apply at every level, `off` included — the variable only turns off context-mode's redirection, never your explicit security policy.
 
 ## Known limits
 
