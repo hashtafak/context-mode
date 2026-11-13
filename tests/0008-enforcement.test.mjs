@@ -1621,12 +1621,10 @@ describe("CONTEXT_MODE_ENFORCE level resolution and decide() gate", { concurrenc
     assert.equal(enforceLevelOf({ PATH: "/usr/bin" }, dir), "aggressive");
   });
 
-  test("no env and no file -> moderate (default); invalid values -> moderate", () => {
+  test("no env and no file -> moderate (default); invalid file values -> moderate", () => {
     const empty = realpathSync(mkdtempSync(join(tmpdir(), "cm-enforce-empty-")));
     try {
       assert.deepEqual(resolveEnforce({}, empty), { level: "moderate", source: "default" });
-      assert.equal(enforceLevelOf({ [ENFORCE_ENV]: "bogus" }, empty), "moderate");
-      assert.equal(enforceLevelOf({ [ENFORCE_ENV]: "" }, empty), "moderate"); // empty counts as missing
       mkdirSync(join(empty, ".context-mode"), { recursive: true });
       const file = join(empty, ".context-mode", "enforce.json");
       writeFileSync(file, "{oops");
@@ -1640,8 +1638,13 @@ describe("CONTEXT_MODE_ENFORCE level resolution and decide() gate", { concurrenc
     }
   });
 
-  test("an invalid env value does not hide a valid file (it counts as missing)", () => {
-    assert.deepEqual(resolveEnforce({ [ENFORCE_ENV]: "bogus" }, dir), { level: "aggressive", source: "file" });
+  test("a present, non-empty invalid env value is terminal moderate — the file is never consulted", () => {
+    // dir's file says "aggressive"; a malformed env must not fall through to it (or to "off").
+    assert.deepEqual(resolveEnforce({ [ENFORCE_ENV]: "bogus" }, dir), { level: "moderate", source: "env-invalid" });
+    assert.equal(enforceLevelOf({ [ENFORCE_ENV]: "OFF " }, dir), "off"); // trimmed + case-insensitive is valid
+    // An empty/blank env value counts as missing and the file still applies.
+    assert.deepEqual(resolveEnforce({ [ENFORCE_ENV]: "" }, dir), { level: "aggressive", source: "file" });
+    assert.deepEqual(resolveEnforce({ [ENFORCE_ENV]: "  " }, dir), { level: "aggressive", source: "file" });
   });
 
   test("levelAllowsDeny / levelAllowsReplace tables (design §6)", () => {
@@ -1657,6 +1660,7 @@ describe("CONTEXT_MODE_ENFORCE level resolution and decide() gate", { concurrenc
 
   test("off: a normally-denied exec (5c curl on a no-replace row) is allowed; voluntary too", () => {
     assert.equal(d("Bash", { command: CURL }, CODEX, [], "moderate").kind, "deny"); // baseline
+    assert.equal(d("Bash", { command: CURL }, CODEX, [], "bogus").kind, "deny"); // invalid env: terminal moderate, file (aggressive) not consulted
     assert.equal(d("Bash", { command: CURL }, CODEX, [], "off").kind, "allow");
     assert.equal(d("Bash", { command: CURL }, CODEX, [], "voluntary").kind, "allow");
   });

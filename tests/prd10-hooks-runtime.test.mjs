@@ -3020,6 +3020,7 @@ describe("PRD-v2 section 10: CONTEXT_MODE_ENFORCE levels (design §6)", () => {
     try {
       writeFileSync(file, JSON.stringify({ level: "off" }));
       assert.equal((await preCodexCurl({})).stdout, "", "file off -> allow");
+      assert.equal(parsed(await preCodexCurl({ [ENFORCE_ENV]: "bogus" })).permissionDecision, "deny", "invalid env is terminal moderate even over file off");
       assert.equal(parsed(await preCodexCurl({ [ENFORCE_ENV]: "moderate" })).permissionDecision, "deny", "env moderate beats file off");
       writeFileSync(file, JSON.stringify({ level: "moderate" }));
       assert.equal(parsed(await preCodexCurl({})).permissionDecision, "deny", "file moderate -> deny");

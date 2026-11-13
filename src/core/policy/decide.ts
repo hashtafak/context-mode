@@ -76,8 +76,10 @@ export function decide(ev: CanonicalHookEvent, row: AdapterRow, userDeny: string
 
   // design §6: CONTEXT_MODE_ENFORCE gates only context-mode's own denies, resolved after the user-deny
   // step so the user's rules apply at every level. The enforce file lives at the project root: root's
-  // worktree on a ProjectContext, the root path itself otherwise (ev.cwd by default).
-  const ownDeny = levelAllowsDeny(enforceLevelOf(env, typeof root === "string" ? root : root.worktree));
+  // worktree on a ProjectContext, the root path itself otherwise (ev.cwd by default). Resolved lazily:
+  // only WebFetch/Bash/Read below can produce a context-mode deny, so other tools never read the file.
+  const ownDeny = (canonical === WEBFETCH || canonical === BASH || canonical === READ)
+    && levelAllowsDeny(enforceLevelOf(env, typeof root === "string" ? root : root.worktree));
 
   if (canonical === WEBFETCH) return webFetch(input, row, ownDeny); // step 4
   if (canonical === BASH) return bash(ev, row, input, rules, root, ownDeny); // steps 5, 6a

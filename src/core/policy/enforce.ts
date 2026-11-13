@@ -1,8 +1,9 @@
 // Runtime enforcement strictness (devin-agent design §6, 2026-11-13 plan task 3).
 // CONTEXT_MODE_ENFORCE = off | voluntary | moderate | aggressive, resolved on every call — the hook
 // process is per-invocation, so there is no cache. Order: env CONTEXT_MODE_ENFORCE ->
-// <projectDir>/.context-mode/enforce.json {"level": ...} -> "moderate". A value that is not a known
-// level counts as missing and the next source is tried; nothing anywhere -> "moderate".
+// <projectDir>/.context-mode/enforce.json {"level": ...} -> "moderate". A present, non-empty env value
+// that is not a known level is terminal "moderate" (source "env-invalid"); a bad or absent file value
+// falls through; nothing anywhere -> "moderate".
 // The level gates ONLY context-mode's own denies (decide.ts, after the user-deny step) and the
 // PostToolUse replace (dispatch.ts). The user's own deny rules apply at every level, "off" included:
 // off disables context-mode's redirection, not the user's explicit security policy.
@@ -12,7 +13,7 @@ import { join } from "node:path";
 import { ENFORCE_DIR_NAME, ENFORCE_ENV, ENFORCE_FILE } from "../contracts/constants.ts";
 
 export type EnforceLevel = "off" | "voluntary" | "moderate" | "aggressive";
-export type EnforceSource = "env" | "file" | "default";
+export type EnforceSource = "env" | "env-invalid" | "file" | "default";
 
 export interface EnforceResolution {
   level: EnforceLevel;
@@ -39,10 +40,15 @@ function fileLevel(projectDir: string): EnforceLevel | null {
   return asLevel((doc as Record<string, unknown>).level);
 }
 
-/** env CONTEXT_MODE_ENFORCE -> <projectDir>/.context-mode/enforce.json -> "moderate" (design §6). */
+/** env CONTEXT_MODE_ENFORCE -> <projectDir>/.context-mode/enforce.json -> "moderate" (design §6).
+ *  A present, non-empty env value that is not a level is terminal: it resolves to "moderate" and the
+ *  file is never consulted — a malformed env var must not fall through to a file that could set a
+ *  lower level (task-3 review ruling). An empty/blank value counts as missing. */
 export function resolveEnforce(env: NodeJS.ProcessEnv, projectDir: string): EnforceResolution {
-  const fromEnv = asLevel(env[ENFORCE_ENV]);
+  const raw = env[ENFORCE_ENV];
+  const fromEnv = asLevel(raw);
   if (fromEnv !== null) return { level: fromEnv, source: "env" };
+  if (raw !== undefined && raw.trim() !== "") return { level: DEFAULT_LEVEL, source: "env-invalid" };
   const fromFile = fileLevel(projectDir);
   if (fromFile !== null) return { level: fromFile, source: "file" };
   return { level: DEFAULT_LEVEL, source: "default" };
