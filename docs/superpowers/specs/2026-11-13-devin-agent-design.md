@@ -72,24 +72,27 @@ Prior research: `FINDINGS.md` at repo root (untracked, main checkout).
   - Skills: `.devin/skills/<name>/SKILL.md` or `~/.config/devin/skills/`
     (`%APPDATA%\devin\skills` on Windows).
   - Hook `command` runs through the system shell (Git Bash on Windows).
-- Devin built-in tool names and `tool_input` keys (from the CLI's own tool
-  schemas — the policy engine keys on these):
-  - `exec`: `{command, shell_id?, workdir?, timeout?, env?}` → canonical
-    Bash policy reads `command`.
-  - `read`: `{file_path, offset?, limit?, ...}` → `file_path`.
-  - `edit`: `{file_path, old_string, new_string, replace_all?}` → `file_path`.
-  - `write`: `{file_path, content}` → `file_path`.
-  - `grep`: `{pattern, path?, glob_pattern?, ...}` → grep policy.
-  - `find_file_by_name`: `{pattern, path?}` → treated as grep/glob.
-  - `webfetch`: `{url}` → WebFetch policy reads `url`.
-  - `notebook_edit`: `{notebook_path, ...}` → edit-class.
-  All names already match canonical policy keys (`command`, `url`,
-  `file_path`) — no field renaming needed; `nativeTools` mapping suffices.
+- Devin built-in tool names — official list from the installed CLI's own
+  docs (`share/devin/docs/extensibility/hooks/lifecycle-hooks.mdx`,
+  v3000.12.28):
+  - File ops: `read`, `write`, `edit`, `apply_patch`, `notebook_read`,
+    `notebook_edit`
+  - Search: `grep`, `glob` (older builds expose `find_file_by_name` —
+    include both in the grep class)
+  - Shell: `exec`, `get_output`, `write_to_process`, `kill_shell`
+  - Web: `webfetch`
+  - Other (not in nativeTools): `todo_write`, `exit_plan_mode`, `skill`,
+    `run_subagent`, `read_subagent`, `request_scope`, `mcp_list_*`,
+    `mcp_call_tool`, `mcp_read_resource`
+- `tool_input` keys match canonical policy fields: `exec`→`command`,
+  `webfetch`→`url`, file tools→`file_path` (`notebook_edit`→
+  `notebook_path`). `apply_patch` is edit-class (codex precedent);
+  `get_output` returns command output → shell class;
+  `write_to_process`/`kill_shell` are session control → excluded.
 - Repo engines: Node >= 24.15.0 (dev machine runs 22 — warning only so far).
 - Minimum Devin CLI for full function: v3000.11.205 (PostToolUse
-  `updatedToolOutput`). `ctx_doctor` should warn below that and the row
-  can degrade `hasReplace` dynamically if we implement a version probe —
-  default: require it, document it.
+  `updatedToolOutput`). Local install verified: `devin 3000.12.28`.
+  `ctx_doctor` should warn below that version.
 - Worktree `.worktree/devin`, branch `devin-agent`; `main` untouched.
 
 ## Approaches considered
@@ -157,11 +160,11 @@ Devin's payload is close to Claude's but not identical:
   projectSource: "spawn-cwd",   // Devin spawns the MCP server with cwd = project root (same as gemini); verify in smoke test, fallback env:DEVIN_PROJECT_DIR for hooks
   toolNamePrefix: devin.TOOL_NAME_PREFIX,
   nativeTools: {
-    shell: ["exec"],
-    read: ["read"],
-    grep: ["grep", "find_file_by_name"],
+    shell: ["exec", "get_output"],
+    read: ["read", "notebook_read"],
+    grep: ["grep", "glob", "find_file_by_name"],
     webfetch: ["webfetch"],
-    edit: ["write", "edit", "notebook_edit"],
+    edit: ["edit", "write", "apply_patch", "notebook_edit"],
   },
   execReadOnlyHint: false,
   eventMap: { SessionStart: "SessionStart", UserPromptSubmit: "UserPromptSubmit",
@@ -271,7 +274,11 @@ attribution: `mcp__context-mode__`.
 - Whether `decision:"block"` on PreToolUse truly prevents execution and
   surfaces `reason` to the agent (docs say yes; verify in smoke test).
 - Whether PostCompaction→PreCompact mapping delivers recall correctly.
-- Local Devin CLI version must be ≥ v3000.11.205 for replace; check
-  `devin --version` before smoke testing.
+- ~~Local Devin CLI version must be ≥ v3000.11.205~~ — VERIFIED: local
+  install is `devin 3000.12.28`, changelog confirms `updatedToolOutput`.
+- Exact `updatedToolOutput` value shape still undocumented (changelog
+  only says "replace a tool result"); smoke-test with a trivial hook
+  before wiring `replace` — likely the `output` string or the whole
+  `tool_response` object.
 - Whether Devin hook commands run via Git Bash on Windows (context-mode
   requires bash for sandbox) — `command` is a shell string; test.
