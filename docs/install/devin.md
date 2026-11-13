@@ -32,7 +32,7 @@ To do the setup step by hand, run `context-mode setup --print devin` and follow 
 - Backs up each file first. A failed step is rolled back byte for byte.
 - Never edits `CLAUDE.md`, `AGENTS.md` or other instruction files.
 
-The Devin user dir is `%APPDATA%\devin` on Windows and `~/.config/devin` on Linux and macOS. Devin has no environment variable for it, so setup always writes the real user dir.
+The Devin user dir is `%APPDATA%\devin` on Windows and `$XDG_CONFIG_HOME/devin` on Linux and macOS when `XDG_CONFIG_HOME` is set, else `~/.config/devin`. Devin has no environment variable of its own for it; `XDG_CONFIG_HOME` is the standard one Devin honors.
 
 ## Verify
 

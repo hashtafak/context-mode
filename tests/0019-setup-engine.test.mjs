@@ -160,7 +160,8 @@ rl.on("line", (l) => {
 
   // Devin user files (docs/superpowers/specs/2026-11-13-devin-agent-design.md): the MCP entry is
   // mcp_config.json, the hooks the "hooks" key of config.json, the skills dir skills/ — all under the
-  // platform devin dir: ~/.config/devin on POSIX, %APPDATA%\devin on win32. Devin has no env override.
+  // platform devin dir: $XDG_CONFIG_HOME/devin or ~/.config/devin on POSIX, %APPDATA%\devin on win32.
+  // Devin has no env var of its own for the dir; it honors XDG_CONFIG_HOME on macOS and Linux alike.
   test("registry: devin MCP entry, hook file and skill dir sit in ~/.config/devin", () => {
     const row = buildRegistry({ home: "/h", pkgDir: "/abs/pkg", env: {}, platform: "linux" }).find((r) => r.id === "devin");
     assert.equal(row.config.file, path.join("/h", ".config", "devin", "mcp_config.json"));
@@ -190,6 +191,18 @@ rl.on("line", (l) => {
     assert.ok(row.hookInstall.file.startsWith(dir), row.hookInstall.file);
     assert.ok(row.hookInstall.file.endsWith("config.json"), row.hookInstall.file);
     assert.ok(row.skillInstall.dir.startsWith(dir), row.skillInstall.dir);
+  });
+
+  test("registry: on posix the devin dir is $XDG_CONFIG_HOME/devin when set, else ~/.config/devin", () => {
+    for (const platform of ["linux", "darwin"]) {
+      assert.equal(devinDirOf({ XDG_CONFIG_HOME: "/xdg cfg" }, "/h", platform), path.posix.join("/xdg cfg", "devin"), platform);
+      assert.equal(devinDirOf({}, "/h", platform), path.posix.join("/h", ".config", "devin"), platform);
+      assert.equal(devinDirOf({ XDG_CONFIG_HOME: "" }, "/h", platform), path.posix.join("/h", ".config", "devin"), platform + ": empty counts as unset");
+      const row = buildRegistry({ home: "/h", pkgDir: "/abs/pkg", env: { XDG_CONFIG_HOME: "/xdg cfg" }, platform }).find((r) => r.id === "devin");
+      assert.equal(row.config.file, path.posix.join("/xdg cfg", "devin", "mcp_config.json"), platform);
+      assert.equal(row.hookInstall.file, path.posix.join("/xdg cfg", "devin", "config.json"), platform);
+      assert.equal(row.skillInstall.dir, path.posix.join("/xdg cfg", "devin", "skills"), platform);
+    }
   });
 
   test("setup: devin writes mcp_config.json, the config.json hooks key and skills; doctor passes", async (t) => {

@@ -182,15 +182,18 @@ export function vscodeUserDirOf(env: NodeJS.ProcessEnv, home: string, platform: 
 }
 
 /** Devin CLI user dir (docs/superpowers/specs/2026-11-13-devin-agent-design.md): win32 %APPDATA%\devin
- *  (else <home>\AppData\Roaming\devin), else <home>/.config/devin. Devin has no env override for its config
- *  dir, so there is no DEVIN_* constant. `platform` is a parameter so the rule is tested on every OS. */
+ *  (else <home>\AppData\Roaming\devin), else $XDG_CONFIG_HOME/devin when set and not empty — Devin honors
+ *  XDG on macOS and Linux alike (no darwin exception) — else <home>/.config/devin. Devin has no env var
+ *  of its own for the dir, so there is no DEVIN_* constant. `platform` is a parameter so the rule is
+ *  tested on every OS. */
 export function devinDirOf(env: NodeJS.ProcessEnv, home: string, platform: NodeJS.Platform = process.platform): string {
   const p = platform === "win32" ? win32 : posix;
   if (platform === "win32") {
     const set = (v: string | undefined): v is string => v !== undefined && v !== "";
     return p.join(set(env[APPDATA_ENV]) ? env[APPDATA_ENV] : p.join(home, "AppData", "Roaming"), "devin");
   }
-  return p.join(home, ".config", "devin");
+  const xdg = env[XDG_CONFIG_HOME_ENV];
+  return p.join(xdg !== undefined && xdg !== "" ? xdg : p.join(home, ".config"), "devin");
 }
 
 /** D-WIN-VSCODE-MCP-1: the host file holding an agent's own MCP entry. `file` is OWN_MCP_ENTRY[agent].file: segments under

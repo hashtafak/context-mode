@@ -77,7 +77,7 @@ function agentPath(ctx: SetupContext, id: AgentId, rel: string | readonly string
   if (id === "kiro" && segs[0] === KIRO_DIR) return path.join(kiroDirOf(ctx.env, ctx.home), ...segs.slice(1));
   // D-WIN-OPENCODE-DIR-1: OpenCode's dir is $OPENCODE_CONFIG_DIR, else $XDG_CONFIG_HOME/opencode, else ~/.config/opencode.
   if (id === "opencode" && segs[0] === OPENCODE_HOME_SEGS[0] && segs[1] === OPENCODE_HOME_SEGS[1]) return path.join(opencodeDirOf(ctx.env, ctx.home), ...segs.slice(2));
-  // Devin user dir: win32 %APPDATA%\devin, else ~/.config/devin; no env override (devinDirOf).
+  // Devin user dir: win32 %APPDATA%\devin, else $XDG_CONFIG_HOME/devin, else ~/.config/devin (devinDirOf).
   if (id === "devin" && segs[0] === ".config" && segs[1] === "devin") return path.join(devinDirOf(ctx.env, ctx.home, ctx.platform), ...segs.slice(2));
   return path.join(ctx.home, ...segs);
 }
