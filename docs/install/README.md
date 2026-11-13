@@ -87,7 +87,7 @@ Each page gives one command, what setup changes, how to check it, how to remove 
 | VS Code (Copilot) | [vscode.md](./vscode.md) | writes the user-profile `mcp.json` (`Code/User`), hooks and skills | config only: VS Code not run |
 | ZCode | [zcode.md](./zcode.md) | writes `~/.zcode/cli/config.json` (MCP and hooks), skills | config only: ZCode not installed |
 
-"Checked in a clean HOME" means the command ran on macOS with a temporary HOME against the npm-packed build, the agent CLI was installed in a temporary prefix, and setup, a second setup, doctor and remove all passed. It does not mean a logged-in agent session fired the hooks: no run did that. No page is checked on Windows.
+"Checked in a clean HOME" means the command ran on macOS with a temporary HOME against the npm-packed build, the agent CLI was installed in a temporary prefix, and setup, a second setup, doctor and remove all passed. It does not mean a logged-in agent session fired the hooks: no run did that, except Devin CLI, whose live `devin -p` session on Windows 3000.12.28 against the real user config is recorded on its page. No other page is checked on Windows.
 
 Each agent installs from `main` or from npm ([ADR-0023](../architecture/adr/ADR-0023-native-install.md)).
 
@@ -95,7 +95,7 @@ Each agent installs from `main` or from npm ([ADR-0023](../architecture/adr/ADR-
 
 Every agent gets hooks and the skills `/ctx-doctor`, `/ctx-stats`, `/ctx-upgrade` ([ADR-0020](../architecture/adr/0020-hooks-and-skills-on-every-agent.md)). Each agent has one hook channel and one saving effect. R = the call runs, then a large result is replaced. D = a large call is denied and the reason names `ctx_execute`.
 
-"Live saving" is the bytes of one large tool result that reach the model: without context-mode -> with context-mode. No run used a logged-in model session: each run piped the host's documented payload into the installed hook or plugin. Full runs: [hooks-all RESULT](https://github.com/mksglu/context-mode/blob/274600e2ffab843e89c1dfa09b0d649e650c962f/docs/v2/spikes/hooks-all/RESULT.md).
+"Live saving" is the bytes of one large tool result that reach the model: without context-mode -> with context-mode. Apart from Devin CLI's live `devin -p` run on Windows, no run used a logged-in model session: each run piped the host's documented payload into the installed hook or plugin. Full runs: [hooks-all RESULT](https://github.com/mksglu/context-mode/blob/274600e2ffab843e89c1dfa09b0d649e650c962f/docs/v2/spikes/hooks-all/RESULT.md).
 
 | Agent | Hook channel | Skills | Effect | Live saving (bytes off -> v2) | Date | Host version | Doc-verified |
 |---|---|---|---|---|---|---|---|
@@ -180,4 +180,4 @@ The first run failed, and the failures were real defects. All four are fixed and
 | The npm package had no `.claude-plugin/marketplace.json`, and Claude Code needs an `owner` object in it | D-INST-3 |
 | Install-docs checker had no rule for CLI flags or page content | D-INST-4 |
 
-Open: Kiro, VS Code and ZCode were not installed, so their rows prove the config entry and handshake only. No logged-in agent session fired a hook. Evidence: [CLI report](https://github.com/mksglu/context-mode/blob/274600e2ffab843e89c1dfa09b0d649e650c962f/docs/v2/CLI-REPORT.md), [engine tests](../../tests/0019-setup-engine.test.mjs), [manifest tests](../../tests/build/manifests.test.mjs).
+Open: Kiro, VS Code and ZCode were not installed, so their rows prove the config entry and handshake only. No logged-in agent session fired a hook in these runs. Evidence: [CLI report](https://github.com/mksglu/context-mode/blob/274600e2ffab843e89c1dfa09b0d649e650c962f/docs/v2/CLI-REPORT.md), [engine tests](../../tests/0019-setup-engine.test.mjs), [manifest tests](../../tests/build/manifests.test.mjs).
