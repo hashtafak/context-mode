@@ -16,7 +16,7 @@ import {
 } from "../contracts/constants.ts";
 import type { AdapterRow, AgentId, DoctorRow } from "../contracts/types.ts";
 import { hasReplace } from "../../adapters/table.ts";
-import { codexDirOf, copilotDirOf, homeDirOf, kiroDirOf, opencodeDirOf, ownMcpFileOf, piAgentDirOf } from "../project/config-dir.ts";
+import { codexDirOf, copilotDirOf, devinDirOf, homeDirOf, kiroDirOf, opencodeDirOf, ownMcpFileOf, piAgentDirOf } from "../project/config-dir.ts";
 import { hostText } from "./host-text.ts";
 import { detectV1, type V1Scope } from "./detect-v1.ts";
 import { hostConfigValueAt, isNodeCommand, mergeOwnEntries, opencodePluginFile, parseHostConfig, readHostConfig } from "./host-config.ts";
@@ -357,6 +357,7 @@ function hookFile(row: AdapterRow, spec: NonNullable<(typeof HOOK_HOST_FILE)[Age
       : row.id === "codex" ? join(codexDirOf(env, home), HOOKS_JSON_FILE) // D-N6-CODEX-HOME-2
       : row.id === "copilot-cli" ? join(copilotDirOf(env, home), ...spec.file.slice(1)) // D-WIN-COPILOT-HOME-1: file = [".copilot", ...]
       : row.id === "kiro" ? join(kiroDirOf(env, home), ...spec.file.slice(1)) // D-WIN-KIRO-HOME-1: file = [".kiro", ...]
+      : row.id === "devin" ? join(devinDirOf(env, home), ...spec.file.slice(2)) // file = [".config", "devin", ...]; win32 %APPDATA%\devin
       : join(root, ...spec.file);
   return file;
 }

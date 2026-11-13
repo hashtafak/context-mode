@@ -15,6 +15,7 @@ import { generateManifests } from "../build/manifests.ts";
 import { buildRegistry, printPlan, runRemove, runSetup, hookCommandString } from "../src/setup/index.ts";
 import { SETUP_NODE } from "../src/setup/registry.ts";
 import { hookSample } from "../src/setup/hook-sample.ts";
+import { devinDirOf } from "../src/core/project/config-dir.ts";
 
   // serial: runSetup and runDoctor share in-process state; the tests fail when they overlap
 describe("ADR-0020 fire matrix: hook channel and skill channel per agent", () => {
@@ -70,7 +71,11 @@ createInterface({ input: process.stdin }).on("line", (l) => {
   // #1375 D-1375-COPILOT-WIN-1: copilot-cli and vscode on Windows write bare node too
   const hookCmd = (pkgDir, id) => `${["codex", "copilot-cli", "vscode"].includes(id) && process.platform === "win32" ? "node" : `"${NODE}"`} "${path.join(pkgDir, "hook.mjs")}" --agent ${id}`;
   // Agents setup writes by file (no host CLI needed): their hook file and skill dir sit under HOME.
-  const FILE_AGENTS = ["codex", "copilot-cli", "vscode", "kiro", "zcode", "opencode"];
+  // devin's dir is platform-dependent (~/.config/devin, %APPDATA%\devin on win32): agentPath resolves it.
+  const FILE_AGENTS = ["codex", "copilot-cli", "vscode", "kiro", "zcode", "opencode", "devin"];
+  const agentPath = (s, id, rel) => id === "devin"
+    ? path.join(devinDirOf(s.env, s.home), ...rel.split("/").slice(2))
+    : path.join(s.home, rel);
 
   function commands(doc) {
     const out = [];
@@ -86,8 +91,8 @@ createInterface({ input: process.stdin }).on("line", (l) => {
     const s = sandbox(t);
     const res = await runSetup({ home: s.home, pkgDir: s.pkgDir, env: s.env, agents: FILE_AGENTS, runId: "r1" });
     assert.equal(res.exitCode, 0, JSON.stringify(res.agents.map((a) => [a.id, a.status, a.reason])));
-    for (const id of ["codex", "copilot-cli", "vscode", "kiro", "zcode"]) {
-      const file = path.join(s.home, getAdapter(id).hookChannel.path);
+    for (const id of ["codex", "copilot-cli", "vscode", "kiro", "zcode", "devin"]) {
+      const file = agentPath(s, id, getAdapter(id).hookChannel.path);
       assert.ok(existsSync(file), id + " hook file " + file);
       const cmds = commands(JSON.parse(readFileSync(file, "utf8")));
       const names = Object.keys(getAdapter(id).eventMap).filter((e) => e !== "Usage");
@@ -101,6 +106,10 @@ createInterface({ input: process.stdin }).on("line", (l) => {
     assert.equal(zc.features.mcp, true, "zcode features.mcp");
     const oc = JSON.parse(readFileSync(path.join(s.home, ".config", "opencode", "opencode.json"), "utf8"));
     assert.deepEqual(oc.plugin, [s.pkgDir], "opencode plugin entry is the package dir (D-OC2-ENTRY-1)");
+    const devin = JSON.parse(readFileSync(agentPath(s, "devin", getAdapter("devin").hookChannel.path), "utf8"));
+    assert.ok(devin.hooks.PreToolUse[0].matcher.includes("exec"), "devin config.json hooks.PreToolUse matcher names exec");
+    const devinMcp = JSON.parse(readFileSync(agentPath(s, "devin", ".config/devin/mcp_config.json"), "utf8"));
+    assert.ok(devinMcp.mcpServers["context-mode"], "devin mcp_config.json MCP entry kept next to the hooks");
   });
 
   test("ADR-0020: setup writes the three skills per agent with that agent's tool name prefix", async (t) => {
@@ -110,7 +119,7 @@ createInterface({ input: process.stdin }).on("line", (l) => {
     for (const id of FILE_AGENTS) {
       const row = getAdapter(id);
       for (const name of SKILLS) {
-        const file = path.join(s.home, row.skillChannel.path, name, "SKILL.md");
+        const file = path.join(agentPath(s, id, row.skillChannel.path), name, "SKILL.md");
         assert.ok(existsSync(file), id + " " + file);
         const text = readFileSync(file, "utf8");
         const tool = name.replace("ctx-", "ctx_");
@@ -156,7 +165,7 @@ createInterface({ input: process.stdin }).on("line", (l) => {
   test("ADR-0020: doctor names hook-registered, hook-runs, hook-seen and skills; seen is a WARN before the first event", async (t) => {
     const s = sandbox(t);
     const { runDoctor } = await import("../src/setup/index.ts");
-    const agents = ["codex", "kiro", "opencode"];
+    const agents = ["codex", "kiro", "opencode", "devin"];
     const res = await runSetup({ home: s.home, pkgDir: s.pkgDir, env: s.env, agents, runId: "r1" });
     assert.equal(res.exitCode, 0, JSON.stringify(res.agents.map((a) => [a.id, a.status, a.reason])));
     const d = await runDoctor({ home: s.home, pkgDir: s.pkgDir, env: s.env, agents });

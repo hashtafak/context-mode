@@ -7,7 +7,7 @@ import { extname, join, resolve } from "node:path";
 import type { AgentId } from "../contracts/agents.ts";
 import { AGENT_FILE_EXT, AGENT_HOME_DIR, SHARED_SKILLS_DIR } from "../contracts/constants.ts";
 import {
-  claudeDirOf, codexDirOf, copilotDirOf, geminiDirOf, homeDirOf, kiroDirOf, opencodeDirOf, piAgentDirOf, vscodeUserDirOf,
+  claudeDirOf, codexDirOf, copilotDirOf, devinDirOf, geminiDirOf, homeDirOf, kiroDirOf, opencodeDirOf, piAgentDirOf, vscodeUserDirOf,
 } from "../project/config-dir.ts";
 import { hasParentStep, isInsideAny, isLexicallyInsideAny } from "../project/contain.ts";
 
@@ -23,6 +23,7 @@ export function ownDirsOf(agent: AgentId, env: NodeJS.ProcessEnv): string[] {
     : agent === "kiro" ? [kiroDirOf(env, home)]
     : agent === "opencode" ? [opencodeDirOf(env, home)]
     : agent === "pi" ? [piAgentDirOf(env, home)]
+    : agent === "devin" ? [devinDirOf(env, home)]
     : agent === "vscode" ? [join(home, ...AGENT_HOME_DIR.vscode), vscodeUserDirOf(env, home)]
     : [join(home, ...AGENT_HOME_DIR[agent])];
   return [...own, shared];

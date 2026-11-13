@@ -18,7 +18,7 @@ import { hookHashOf, pluginTrustEntries } from "../src/setup/codex-trust.ts";
 import { assertWritable, buildRegistry, hostBin, installExitOk, pathEntries, runDoctor, runRemove, runSetup, spawnForm, spawnShim, whichBin, winCmdLine, LOCK_FILE, BACKUP_DIR, shellWord } from "../src/setup/index.ts";
 import { generateManifests } from "../build/manifests.ts";
 import { FAKE_APP_SERVER, PLUGIN_EVENTS, PLUGIN_ID, PLUGIN_KEY, hashOf } from "./_lib/codex-fake.mjs";
-import { vscodeUserDirOf } from "../src/core/project/config-dir.ts";
+import { devinDirOf, vscodeUserDirOf } from "../src/core/project/config-dir.ts";
 import { detectV1 } from "../src/core/ops/detect-v1.ts";
 
   // serial: runSetup and runDoctor share in-process state; the tests fail when they overlap
@@ -156,6 +156,55 @@ rl.on("line", (l) => {
     }
     const codex = reg.find((r) => r.id === "codex");
     assert.deepEqual(codex.serverCommand, [NODE, path.join("/abs/pkg", "server.mjs"), "--agent", "codex"]);
+  });
+
+  // Devin user files (docs/superpowers/specs/2026-11-13-devin-agent-design.md): the MCP entry is
+  // mcp_config.json, the hooks the "hooks" key of config.json, the skills dir skills/ — all under the
+  // platform devin dir: ~/.config/devin on POSIX, %APPDATA%\devin on win32. Devin has no env override.
+  test("registry: devin MCP entry, hook file and skill dir sit in ~/.config/devin", () => {
+    const row = buildRegistry({ home: "/h", pkgDir: "/abs/pkg", env: {}, platform: "linux" }).find((r) => r.id === "devin");
+    assert.equal(row.config.file, path.join("/h", ".config", "devin", "mcp_config.json"));
+    assert.equal(row.config.format, "json");
+    assert.deepEqual(row.config.key, ["mcpServers", "context-mode"]);
+    assert.equal(row.hookInstall.kind, "file");
+    assert.equal(row.hookInstall.file, path.join("/h", ".config", "devin", "config.json"));
+    assert.equal(row.skillInstall.kind, "dir");
+    assert.equal(row.skillInstall.dir, path.join("/h", ".config", "devin", "skills"));
+    const hooks = row.hookInstall.shape.hooks;
+    assert.ok(hooks.PreToolUse[0].matcher.includes("exec"), "PreToolUse matcher names the exec tool");
+    assert.ok(hooks.PostToolUse, "PostToolUse present");
+    assert.ok(hooks.PostCompaction, "PostCompaction present");
+    assert.equal(row.listCommand.bin, "devin");
+    assert.deepEqual(row.listCommand.args, ["mcp", "list"]);
+  });
+
+  test("registry: on win32 the devin dir is %APPDATA%\\devin, else <home>\\AppData\\Roaming\\devin", () => {
+    const env = { APPDATA: "C:\\Users\\u\\AppData\\Roaming" };
+    assert.equal(devinDirOf(env, "C:\\Users\\u", "win32"), path.win32.join(env.APPDATA, "devin"));
+    assert.equal(devinDirOf({}, "C:\\Users\\u", "win32"), path.win32.join("C:\\Users\\u", "AppData", "Roaming", "devin"));
+    assert.equal(devinDirOf({ APPDATA: "" }, "C:\\Users\\u", "win32"), path.win32.join("C:\\Users\\u", "AppData", "Roaming", "devin"), "empty APPDATA counts as unset");
+    const row = buildRegistry({ home: "C:\\Users\\u", pkgDir: "C:\\pkg", env, platform: "win32" }).find((r) => r.id === "devin");
+    const dir = path.win32.join(env.APPDATA, "devin");
+    assert.ok(row.config.file.startsWith(dir), row.config.file);
+    assert.ok(row.config.file.endsWith("mcp_config.json"), row.config.file);
+    assert.ok(row.hookInstall.file.startsWith(dir), row.hookInstall.file);
+    assert.ok(row.hookInstall.file.endsWith("config.json"), row.hookInstall.file);
+    assert.ok(row.skillInstall.dir.startsWith(dir), row.skillInstall.dir);
+  });
+
+  test("setup: devin writes mcp_config.json, the config.json hooks key and skills; doctor passes", async (t) => {
+    const s = sandbox(t);
+    const res = await runSetup({ home: s.home, pkgDir: s.pkgDir, env: s.env, agents: ["devin"], runId: "r1" });
+    assert.equal(res.exitCode, 0, JSON.stringify(res.agents.map((a) => [a.id, a.status, a.reason, a.checks])));
+    const dir = devinDirOf(s.env, s.home); // ~/.config/devin on POSIX, %APPDATA%\devin on win32
+    const mcp = JSON.parse(readFileSync(path.join(dir, "mcp_config.json"), "utf8"));
+    assert.deepEqual(mcp.mcpServers["context-mode"], { command: NODE, args: [path.join(s.pkgDir, "server.mjs"), "--agent", "devin"] });
+    const cfg = JSON.parse(readFileSync(path.join(dir, "config.json"), "utf8"));
+    assert.ok(cfg.hooks.PreToolUse[0].matcher.includes("exec"), "hook matcher names exec");
+    assert.ok(cfg.hooks.PostToolUse, "PostToolUse hooks present");
+    assert.ok(existsSync(path.join(dir, "skills", "ctx-stats", "SKILL.md")), "skill written");
+    const doc = await runDoctor({ home: s.home, pkgDir: s.pkgDir, env: s.env, agents: ["devin"] });
+    assert.equal(doc.agents[0].status, "PASS", JSON.stringify(doc.agents[0].checks));
   });
 
   test("instruction files: the allowlist guard refuses every routing-instruction file", () => {

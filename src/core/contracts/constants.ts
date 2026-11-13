@@ -1021,6 +1021,8 @@ export const OWN_MCP_ENTRY: Readonly<Partial<Record<AgentId, OwnMcpEntry>>> = Ob
   codex: { file: [".codex", "config.toml"], key: ["mcp_servers", SERVER_KEY], fields: { [CODEX_OMIT_TOOLS_FROM_FIELD]: CODEX_OMIT_DEFERRED, [CODEX_APPROVAL_MODE_FIELD]: CODEX_APPROVAL_APPROVE } },
   vscode: { file: [VSCODE_MCP_FILE], key: ["servers", SERVER_KEY] },
   kiro: { file: [".kiro", "settings", "mcp.json"], key: ["mcpServers", SERVER_KEY] },
+  // Devin user MCP config: ~/.config/devin/mcp_config.json (%APPDATA%\devin on win32, devinDirOf); JSON {command,args}.
+  devin: { file: [".config", "devin", "mcp_config.json"], key: ["mcpServers", SERVER_KEY] },
   zcode: {
     file: [".zcode", "cli", "config.json"], key: ["mcp", "servers", SERVER_KEY],
     fields: { type: "stdio", enabled: true, timeoutMs: EXEC_TIMEOUT_MS }, also: [[ZCODE_MCP_FEATURE_KEY, true]],

@@ -530,4 +530,60 @@ describe("ADR-0020 fire, hook-config hosts", { concurrency: CONC }, () => {
         assert.deepEqual(got, { read: want, registered: want });
       });
   });
+
+  describe("ADR-0020 fire devin", () => {
+    // Devin CLI (docs/superpowers/specs/2026-11-13-devin-agent-design.md): setup writes the user MCP entry to
+    // <APPDATA>/devin/mcp_config.json on win32 (~/.config/devin elsewhere) and the hooks to config.json. The real
+    // `devin mcp list` must then show context-mode — the same check doctor LIST.devin runs. A live hook fire needs a
+    // Devin login and a model, so this covers the install channel only. Skipped when devin is not on PATH, and on
+    // win32: devin.exe resolves its dir through the OS known-folder API and ignores an APPDATA override (verified on
+    // 3000.12.28), so the test cannot sandbox the real config dir there.
+
+    const DEVIN = whichBin("devin", process.env);
+    const hasDevin = DEVIN !== undefined && spawnSync(spawnForm(DEVIN, ["--version"], process.env).command, spawnForm(DEVIN, ["--version"], process.env).args, { stdio: "ignore", windowsVerbatimArguments: spawnForm(DEVIN, ["--version"], process.env).windowsVerbatimArguments }).status === 0;
+    const REPO = resolve(import.meta.dirname, "..");
+
+    function fakePkg(root) {
+      const dir = path.join(root, "pkg");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(path.join(dir, "server.mjs"), `
+import { createInterface } from "node:readline";
+const tools = ${JSON.stringify([...TOOL_ORDER])};
+createInterface({ input: process.stdin }).on("line", (l) => {
+  const m = JSON.parse(l);
+  if (m.id === undefined) return;
+  const result = m.method === "initialize"
+    ? { protocolVersion: "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "context-mode", version: "2.0.0" } }
+    : { tools: tools.map((name) => ({ name, inputSchema: { type: "object" } })) };
+  process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: m.id, result }) + "\\n");
+});
+`);
+      writeFileSync(path.join(dir, "hook.mjs"), `let s = ""; process.stdin.on("data", (d) => { s += d; }); process.stdin.on("end", () => { const p = JSON.parse(s); if (!JSON.stringify(p).includes("context-mode-doctor-hook-runs")) return; const t = "deny: run ctx_execute; ctx_search( finds the rest"; process.stderr.write(t + "\\n"); process.stdout.write(JSON.stringify({ decision: "deny", reason: t })); });\n`);
+      writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "context-mode", version: "2.0.0" }));
+      generateManifests(dir);
+      for (const s of ["ctx-doctor", "ctx-stats", "ctx-upgrade"]) {
+        cpSync(path.join(REPO, "skills", s), path.join(dir, "skills", s), { recursive: true });
+        cpSync(path.join(REPO, "skills", s), path.join(dir, "pi", "skills", s), { recursive: true });
+        cpSync(path.join(REPO, "skills", s), path.join(dir, "claude-code", "skills", s), { recursive: true });
+      }
+      return dir;
+    }
+
+    test("[devin-agent] setup --agents devin: the real `devin mcp list` shows context-mode from the written mcp_config.json",
+      { skip: process.platform === "win32" ? "devin.exe ignores an APPDATA override on win32 (known-folder API)" : !hasDevin && "devin not on PATH", timeout: 120000 }, async (t) => {
+        const root = mkdtempSync(path.join(tmpdir(), "cm-devinfire-"));
+        t.after(() => rmSync(root, { recursive: true, force: true }));
+        const home = path.join(root, "home");
+        const appdata = path.join(root, "appdata"); // win32 devin dir is %APPDATA%\devin
+        mkdirSync(home, { recursive: true });
+        mkdirSync(appdata, { recursive: true });
+        const env = { ...process.env, HOME: home, USERPROFILE: home, APPDATA: appdata, CM_HOOK_OVERHEAD_BUDGET_MS: "60000" };
+        const res = await runSetup({ home, pkgDir: fakePkg(root), env, agents: ["devin"], runId: "df1" });
+        assert.equal(res.agents[0].status, "PASS", JSON.stringify(res.agents[0]));
+        const f = spawnForm(DEVIN, ["mcp", "list"], env);
+        const r = spawnSync(f.command, f.args, { env, encoding: "utf8", timeout: 60000, windowsVerbatimArguments: f.windowsVerbatimArguments });
+        assert.equal(r.status, 0, `${r.stdout}${r.stderr}`);
+        assert.ok(`${r.stdout}${r.stderr}`.includes("context-mode"), `${r.stdout}${r.stderr}`);
+      });
+  });
 });

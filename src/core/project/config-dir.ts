@@ -181,11 +181,24 @@ export function vscodeUserDirOf(env: NodeJS.ProcessEnv, home: string, platform: 
   return p.join(set(env[XDG_CONFIG_HOME_ENV]) ? env[XDG_CONFIG_HOME_ENV] : p.join(home, ".config"), ...VSCODE_USER_DIR_SEGMENTS);
 }
 
+/** Devin CLI user dir (docs/superpowers/specs/2026-11-13-devin-agent-design.md): win32 %APPDATA%\devin
+ *  (else <home>\AppData\Roaming\devin), else <home>/.config/devin. Devin has no env override for its config
+ *  dir, so there is no DEVIN_* constant. `platform` is a parameter so the rule is tested on every OS. */
+export function devinDirOf(env: NodeJS.ProcessEnv, home: string, platform: NodeJS.Platform = process.platform): string {
+  const p = platform === "win32" ? win32 : posix;
+  if (platform === "win32") {
+    const set = (v: string | undefined): v is string => v !== undefined && v !== "";
+    return p.join(set(env[APPDATA_ENV]) ? env[APPDATA_ENV] : p.join(home, "AppData", "Roaming"), "devin");
+  }
+  return p.join(home, ".config", "devin");
+}
+
 /** D-WIN-VSCODE-MCP-1: the host file holding an agent's own MCP entry. `file` is OWN_MCP_ENTRY[agent].file: segments under
  *  <home>, except VS Code, whose file name sits in the user-profile dir. The one place setup, doctor, upgrade, uninstall
  *  and plugin-root get this path. */
 export function ownMcpFileOf(agent: string, file: readonly string[], env: NodeJS.ProcessEnv, home: string): string {
   if (agent === "kiro") return join(kiroDirOf(env, home), ...file.slice(1)); // D-WIN-KIRO-HOME-1: file = [".kiro", ...]
+  if (agent === "devin") return join(devinDirOf(env, home), ...file.slice(2)); // file = [".config", "devin", ...]
   return agent === "vscode" ? join(vscodeUserDirOf(env, home), ...file) : join(home, ...file);
 }
 

@@ -14,7 +14,7 @@ import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, 
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { claudeDirOf, codexDirOf, copilotDirOf, dataRootOf, geminiDirOf, kiroDirOf, opencodeDirOf } from "../core/project/config-dir.ts";
+import { claudeDirOf, codexDirOf, copilotDirOf, dataRootOf, devinDirOf, geminiDirOf, kiroDirOf, opencodeDirOf } from "../core/project/config-dir.ts";
 import { AGENT_HOME_DIR, D2_NODE_DETAIL, D2_NODE_FIX, D2_SQLITE_DETAIL, D2_SQLITE_FIX, DB_FILE_NAME, MCP_ENV_FIELD, MCP_ENV_VARS_FIELD, MCP_TOOLS_FIELD, SETUP_MANIFEST_FILE, NATIVE_INSTALL, OPENCODE_CONFIG_FILES, OPENCODE_PLUGIN_KEY, OPENCODE_PLUGINS_KEY, OPENCODE_PLUGIN_PATH, PROJECTS_DIR_NAME, SERVER_KEY, TOOL_ORDER, UPGRADE_REPORT_ONLY_REASONS } from "../core/contracts/constants.ts";
 import { CtxError, formatError } from "../core/contracts/errors.ts";
 import { nodeTooOld } from "../core/hooks/fallback.ts";
@@ -1089,6 +1089,7 @@ function agentHomeDir(id: AgentId, ctx: SetupContext): string {
   if (id === "kiro") return kiroDirOf(ctx.env, ctx.home); // D-WIN-KIRO-HOME-1
   if (id === "opencode") return opencodeDirOf(ctx.env, ctx.home); // D-WIN-OPENCODE-DIR-1
   if (id === "gemini") return geminiDirOf(ctx.env, ctx.home); // D-R38-GEMINI-HOME-1
+  if (id === "devin") return devinDirOf(ctx.env, ctx.home, ctx.platform); // win32 %APPDATA%\devin
   return path.join(ctx.home, ...AGENT_HOME_DIR[id]);
 }
 

@@ -1,6 +1,6 @@
 # Context Mode
 
-**A free, local plugin for 10 coding agents. It keeps tool output out of your agent's context window and keeps all usage data on your machine. The plugin is free forever.**
+**A free, local plugin for 11 coding agents. It keeps tool output out of your agent's context window and keeps all usage data on your machine. The plugin is free forever.**
 
 [![npm downloads](https://img.shields.io/npm/dt/context-mode?label=npm%20downloads)](https://www.npmjs.com/package/context-mode) [![GitHub stars](https://img.shields.io/github/stars/mksglu/context-mode?style=flat&color=yellow)](https://github.com/mksglu/context-mode) [![Discord](https://img.shields.io/discord/1478479412700909750?label=Discord&logo=discord&color=5865f2)](https://discord.gg/DCN9jUgN5v) [![License: ELv2](https://img.shields.io/badge/License-ELv2-blue.svg)](LICENSE)
 
@@ -10,7 +10,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/hero-dark.png">
-  <img src="docs/assets/readme/hero-light.png" alt="Context Mode plugin: free and local, zero telemetry, the plugin keeps your data on your machine. Bench of 2026-11-01: 99.4% of output bytes saved (median of 36 rows with 10 KB or more of raw output). A full debugging session (row g-session-total): 281,261 B raw to 3,266 B in context, about 70K to 817 tokens (an estimate at 4 B per token). Resume after compaction (row e-long-session): a 442,893 B transcript to a 2,019 B block, about 111K to 505 tokens (an estimate). Runs in 10 coding agents with 9 MCP tools.">
+  <img src="docs/assets/readme/hero-light.png" alt="Context Mode plugin: free and local, zero telemetry, the plugin keeps your data on your machine. Bench of 2026-11-01: 99.4% of output bytes saved (median of 36 rows with 10 KB or more of raw output). A full debugging session (row g-session-total): 281,261 B raw to 3,266 B in context, about 70K to 817 tokens (an estimate at 4 B per token). Resume after compaction (row e-long-session): a 442,893 B transcript to a 2,019 B block, about 111K to 505 tokens (an estimate). Runs in 11 coding agents with 9 MCP tools.">
 </picture>
 
 **Contents:** [Why](#why) · [Adoption](#adoption-stars-and-npm-downloads) · [Install](#install) · [Try it](#try-it) · [Use cases](#use-cases) · [Benchmarks](#benchmarks) · [How it works](#how-it-works) · [Tools](#tools) · [Security and privacy](#security-and-privacy) · [Context Mode Gateway](#context-mode-gateway) · [License](#license) · [Community](#community)
@@ -268,10 +268,10 @@ Restart the agent, then run `/ctx-doctor` in it. Each check prints PASS or a fix
 <details><summary><b>How we tested the install</b></summary>
 
 Every agent gets hooks, the MCP server and the plugin skills; the last line of each block above says how.
-Hooks reach each agent in one of three ways: in the plugin package (Claude Code, Gemini CLI, Qwen Code), in a hook file (Codex, Copilot CLI, Kiro, VS Code, ZCode), or in a plugin inside the agent (OpenCode, Pi). The [Agents guide](https://contextmode.ai/docs/engine/agents?utm_source=github&utm_medium=readme&utm_content=install-agents) shows what each agent runs.
+Hooks reach each agent in one of three ways: in the plugin package (Claude Code, Gemini CLI, Qwen Code), in a hook file (Codex, Copilot CLI, Kiro, VS Code, ZCode, Devin CLI), or in a plugin inside the agent (OpenCode, Pi). The [Agents guide](https://contextmode.ai/docs/engine/agents?utm_source=github&utm_medium=readme&utm_content=install-agents) shows what each agent runs.
 We ran the real binary of each agent with the plugin hook: Claude Code, Codex, Gemini CLI, Qwen Code, Pi, OpenCode, Copilot CLI and ZCode. Each run used a clean temp home and a local test model, on 2.0.0-next.15.
 For VS Code and Kiro, the check covers the hook setup: VS Code runs the hook command with the documented payload, and kiro-cli 2.35.2 loads all 6 hook entries.
-CI runs setup, doctor, a hook and an MCP handshake for all 10 agents from the packed package on Linux, macOS and Windows. Record: [HOOKS-FIRE.md](docs/architecture/release/HOOKS-FIRE.md).
+CI runs setup, doctor, a hook and an MCP handshake for the agents it covers from the packed package on Linux, macOS and Windows. Record: [HOOKS-FIRE.md](docs/architecture/release/HOOKS-FIRE.md).
 Each agent uses its own install command, and [ADR-0023](docs/architecture/adr/ADR-0023-native-install.md) says why.
 
 </details>

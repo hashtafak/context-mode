@@ -32,9 +32,9 @@ describe("ADR-0018: contracts (concurrent)", { concurrency: CONC }, () => {
 
     const SRC = join(dirname(fileURLToPath(import.meta.url)), "../src/core/contracts");
 
-    test("AGENT_IDS has the 10 agents in PRD §3 order", () => {
-      assert.deepEqual([...AGENT_IDS], ["claude-code", "codex", "gemini", "qwen", "copilot-cli", "vscode", "kiro", "zcode", "pi", "opencode"]);
-      assert.equal(AGENT_IDS.length, 10);
+    test("AGENT_IDS has the 11 agents in PRD §3 order (devin appended)", () => {
+      assert.deepEqual([...AGENT_IDS], ["claude-code", "codex", "gemini", "qwen", "copilot-cli", "vscode", "kiro", "zcode", "pi", "opencode", "devin"]);
+      assert.equal(AGENT_IDS.length, 11);
     });
 
     test("TOOL_ORDER has the 9 tool names in order", () => {

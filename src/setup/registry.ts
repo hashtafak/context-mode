@@ -7,7 +7,7 @@ import path from "node:path";
 import { ADAPTERS, getAdapter } from "../adapters/table.ts";
 import { AGENT_HOME_DIR, PLUGIN_MARKETPLACE_NAME, HOST_NODE_COMMAND, HOST_PLUGINS_DIR_NAME, INSTALLED_PLUGINS_FILE, MCP_ENV_FIELD, OPENCODE_BASE_CONFIG_FILE, OWN_MCP_ENTRY, SERVER_KEY, SETUP_BACKUP_DIR_NAME, TOOL_ORDER } from "../core/contracts/constants.ts";
 import type { AgentId, AdapterRow, HostConfigFormat } from "../core/contracts/types.ts";
-import { claudeDirOf, claudeProfileEnv, copilotDirOf, geminiDirOf, kiroDirOf, opencodeDirOf, ownMcpFileOf } from "../core/project/config-dir.ts";
+import { claudeDirOf, claudeProfileEnv, copilotDirOf, devinDirOf, geminiDirOf, kiroDirOf, opencodeDirOf, ownMcpFileOf } from "../core/project/config-dir.ts";
 import { ownMcpValue } from "../core/ops/host-config.ts";
 import { HOOK_SHAPES, type JsonObject } from "./hook-shapes.ts";
 
@@ -77,6 +77,8 @@ function agentPath(ctx: SetupContext, id: AgentId, rel: string | readonly string
   if (id === "kiro" && segs[0] === KIRO_DIR) return path.join(kiroDirOf(ctx.env, ctx.home), ...segs.slice(1));
   // D-WIN-OPENCODE-DIR-1: OpenCode's dir is $OPENCODE_CONFIG_DIR, else $XDG_CONFIG_HOME/opencode, else ~/.config/opencode.
   if (id === "opencode" && segs[0] === OPENCODE_HOME_SEGS[0] && segs[1] === OPENCODE_HOME_SEGS[1]) return path.join(opencodeDirOf(ctx.env, ctx.home), ...segs.slice(2));
+  // Devin user dir: win32 %APPDATA%\devin, else ~/.config/devin; no env override (devinDirOf).
+  if (id === "devin" && segs[0] === ".config" && segs[1] === "devin") return path.join(devinDirOf(ctx.env, ctx.home, ctx.platform), ...segs.slice(2));
   return path.join(ctx.home, ...segs);
 }
 
@@ -267,6 +269,7 @@ const LIST: Partial<Record<AgentId, { bin: string; args: string[] }>> = {
   pi: { bin: "pi", args: ["list"] },
   // D-HF-OPENCODE-LIST-1: --pure skips external plugins, so a fresh HOME does not wait on the @opencode-ai/plugin install.
   opencode: { bin: "opencode", args: ["mcp", "list", "--pure"] },
+  devin: { bin: "devin", args: ["mcp", "list"] }, // `devin mcp list` exists (devin 3000.12.28 `mcp --help`)
 };
 
 function hookFilesFor(ctx: SetupContext, id: AgentId): HookFile[] {
@@ -277,6 +280,8 @@ function hookFilesFor(ctx: SetupContext, id: AgentId): HookFile[] {
     case "claude-code": return [{ file: path.join(claudeDirOf(ctx.env, home), "settings.json"), mode: "drop" }];
     case "gemini": return [{ file: path.join(geminiDirOf(ctx.env, home), "settings.json"), mode: "drop" }]; // D-R38-GEMINI-HOME-1
     case "qwen": return [{ file: path.join(home, ".qwen", "settings.json"), mode: "drop" }];
+    // Devin user hooks are the "hooks" key of <devin dir>/config.json; other config.json keys are the user's.
+    case "devin": return [{ file: path.join(devinDirOf(ctx.env, home, ctx.platform ?? process.platform), "config.json"), mode: "rewrite" }];
     default: return [];
   }
 }
